@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <!-- pingpong-vision app icon: pixel paddle + ball with a trail, navy field (tokens: style.css) -->
+  <rect width="16" height="16" fill="#0b1634"/>
+  <g fill="#ff8a1f">
+    <rect x="4" y="3" width="3" height="1"/>
+    <rect x="3" y="4" width="5" height="1"/>
+    <rect x="2" y="5" width="7" height="3"/>
+    <rect x="3" y="8" width="5" height="1"/>
+    <rect x="4" y="9" width="3" height="1"/>
+  </g>
+  <g fill="#ffd34d">
+    <rect x="7" y="9" width="2" height="1"/>
+    <rect x="8" y="10" width="2" height="1"/>
+    <rect x="9" y="11" width="2" height="1"/>
+    <rect x="10" y="12" width="2" height="1"/>
+    <rect x="11" y="13" width="2" height="1"/>
+  </g>
+  <g fill="#4fd1ff">
+    <rect x="13" y="3" width="1" height="1"/>
+    <rect x="14" y="1" width="1" height="1"/>
+  </g>
+  <rect x="10" y="5" width="2" height="2" fill="#f2f6ff"/>
+</svg>

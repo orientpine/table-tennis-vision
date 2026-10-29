@@ -1,0 +1,15 @@
+node_modules/
+.omo/
+evidence/raw/
+data/videos/
+*.log
+public/models/*.task
+public/models/*.onnx
+public-url.txt
+evidence/camera-run1/
+evidence/camera-run2/
+reference/
+evidence/r2/raw/
+# dataset frames (OpenTTGames, CC BY-NC-SA): make them locally, never commit (README)
+public/bench/frame.jpg
+qa/fixtures/

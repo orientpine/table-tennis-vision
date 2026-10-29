@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pose model benchmark</title>
+  <style>
+    :root { color-scheme: dark; font: 15px system-ui, sans-serif; background: #101720; color: #edf3fa; }
+    body { max-width: 1100px; margin: auto; padding: 20px; }
+    h1 { font-size: 25px; } p { line-height: 1.5; color: #b9c8d8; }
+    button { font: inherit; padding: 10px 18px; margin: 0 10px 12px 0; cursor: pointer; }
+    #progress { padding: 12px; border: 1px solid #54718c; min-height: 24px; }
+    .scroll { overflow-x: auto; } table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 7px; border-bottom: 1px solid #354455; }
+    td:last-child { max-width: 350px; overflow-wrap: anywhere; }
+    #ua { overflow-wrap: anywhere; font-size: 12px; }
+    #previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+    figure { margin: 12px 0; } canvas { width: 100%; height: auto; background: #000; }
+    figcaption { font-size: 13px; } .error { color: #ffb7ad; }
+  </style>
+  <script type="module" src="./js/bench.js"></script>
+</head>
+<body>
+  <h1>On-device pose benchmark</h1>
+  <p>No camera or uploads. Each candidate runs sequentially: 5 warm-ups, then 40 timed iterations.
+    MediaPipe detects up to 2 poses on the 1280 × 720 image (IMAGE mode).
+    RTMPose processes two fixed player crops separately at 192 × 256; times include both crops'
+    RGB normalization, inference, and SimCC decoding. Loading and overlay drawing are excluded.
+    FPS = 1000 / mean pair time, not per-person throughput. Keep this tab in the foreground.</p>
+  <button id="run">Run benchmark</button><button id="copy" disabled>Copy result JSON</button>
+  <div id="progress" role="status" aria-live="polite">Ready. Tap Run benchmark.</div>
+  <p id="ua"></p>
+  <div class="scroll"><table>
+    <thead><tr><th>Model</th><th>Backend used</th><th>Mean ms</th><th>p90 ms</th><th>FPS</th><th>Status / error</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table></div>
+  <p>Overlays: orange = left crop / person; cyan = right. RTMPose uses fixed crops, not a person detector.
+    Each successful row shows its final inference below. GPU providers can still execute unsupported operators on CPU;
+    labels identify the initialized execution provider, not every operator's placement.</p>
+  <div id="previews"></div>
+</body>
+</html>

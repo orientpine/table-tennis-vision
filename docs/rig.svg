@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" font-family="sans-serif" font-size="18">
+  <rect width="1400" height="800" fill="#f7f7f5"/>
+  <text x="30" y="40" font-size="26" font-weight="700" fill="#1b2340">탁구 분석 패드 + TV 배치 (위에서 본 그림 / 옆에서 본 그림)</text>
+
+  <g transform="translate(40,70)">
+    <text x="0" y="20" font-weight="700" fill="#1b2340">위에서 본 그림</text>
+    <rect x="160" y="80" width="400" height="223" fill="#2b4fae" stroke="#fff" stroke-width="3"/>
+    <line x1="360" y1="70" x2="360" y2="313" stroke="#ddd" stroke-width="4"/>
+    <line x1="160" y1="191" x2="560" y2="191" stroke="#fff" stroke-width="1.5"/>
+    <text x="300" y="60" fill="#333">탁구대 2.74 × 1.525 m</text>
+    <circle cx="110" cy="191" r="22" fill="#26c6da"/><text x="70" y="240" fill="#333">나 (앞쪽)</text>
+    <circle cx="610" cy="191" r="22" fill="#66bb6a"/><text x="575" y="240" fill="#333">상대 (건너편)</text>
+    <rect x="345" y="520" width="30" height="20" fill="#333"/>
+    <text x="388" y="536" fill="#333">패드/아이폰 (삼각대)</text>
+    <path d="M360 520 L150 300 M360 520 L570 300" stroke="#e67e22" stroke-dasharray="8 6" stroke-width="2" fill="none"/>
+    <line x1="590" y1="313" x2="590" y2="520" stroke="#999" marker-end="url(#a)" marker-start="url(#a)"/>
+    <text x="600" y="430" fill="#555">옆줄에서 2~3 m</text>
+    <text x="388" y="565" fill="#555">네트 연장선 위,</text><text x="388" y="590" fill="#555">테이블 전체와 두 선수가 화면에 들어오게</text>
+    <rect x="0" y="420" width="150" height="85" fill="#111" rx="6"/>
+    <text x="35" y="470" fill="#fff">큰 TV</text>
+    <path d="M345 535 C260 560 180 540 150 480" stroke="#8e44ad" stroke-width="4" fill="none"/>
+    <text x="0" y="640" fill="#8e44ad">USB-C → HDMI 어댑터 + HDMI 케이블 (또는 AirPlay 무선)</text>
+    <path d="M360 542 C360 650 420 695 540 700" stroke="#7f8c8d" stroke-width="3" fill="none"/>
+    <text x="550" y="706" fill="#7f8c8d">충전 케이블 (어댑터에 같이 꽂음)</text>
+  </g>
+
+  <g transform="translate(980,70)">
+    <text x="0" y="20" font-weight="700" fill="#1b2340">옆에서 본 그림 (네트 쪽에서)</text>
+    <line x1="0" y1="560" x2="380" y2="560" stroke="#444" stroke-width="3"/>
+    <rect x="200" y="420" width="170" height="10" fill="#2b4fae"/>
+    <line x1="210" y1="430" x2="210" y2="560" stroke="#666" stroke-width="4"/>
+    <line x1="360" y1="430" x2="360" y2="560" stroke="#666" stroke-width="4"/>
+    <text x="215" y="410" fill="#333">탁구대 높이 0.76 m</text>
+    <line x1="60" y1="560" x2="60" y2="230" stroke="#333" stroke-width="5"/>
+    <rect x="45" y="205" width="30" height="26" fill="#333"/>
+    <text x="85" y="200" fill="#333">카메라 1.5~2.0 m</text>
+    <path d="M75 218 L370 420 M75 218 L200 425" stroke="#e67e22" stroke-dasharray="8 6" stroke-width="2"/>
+    <text x="0" y="600" fill="#555">살짝 내려다보게 (15~30°).</text>
+    <text x="0" y="625" fill="#555">탁구대 높이에 수평으로 두면 상판이 선처럼 보여</text>
+    <text x="0" y="650" fill="#555">바운드 위치·속도 계산이 무너짐.</text>
+    <text x="0" y="675" fill="#555">"수평"은 화면이 기울지 않게(롤 0°)만 맞춘다.</text>
+  </g>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#999"/></marker></defs>
+</svg>
