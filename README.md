@@ -1,120 +1,241 @@
+<div align="center">
+
+**English** · [한국어](README.ko.md)
+
+<img src="docs/img/hero.gif" alt="Table Tennis Vision running on a phone in landscape: rally timer, shot count, estimated speed, ball trail with LOCK, player skeleton and court map over a public OpenTTGames match" width="720">
+
+<sub>Banner and screenshots: frames of <code>test_2</code> from the <a href="https://lab.osai.ai/">OpenTTGames dataset</a> (OSAI), cropped and scaled, with the app's overlay drawn on top. These images are licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>, not under the MIT license of the code.</sub>
+
 # Table Tennis Vision
 
-A web app for iPhone Safari (or any modern mobile browser) that watches a table tennis game through the phone's rear camera. Put the phone on a tripod next to the table and everything runs on the device: pose skeletons for two players (MediaPipe Pose Landmarker), ball detection and tracking (colour plus motion, no ML), rally time and shot count, an estimated shot speed in km/h, a shot type label, a bounce map, each player's MOVE distance and wrist angle, and a LOCK marker that shows when the ball track is trusted. If you want, finished rallies can be uploaded as highlights to a server you run yourself, with share links nobody can guess. Apart from that upload, the camera stream never leaves the phone.
+**Free, open-source table tennis (ping-pong) video analysis from one phone camera. It runs in the browser on your phone, and you host it yourself.**
+
+[![License: MIT](https://img.shields.io/github/license/orientpine/table-tennis-vision?color=blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/orientpine/table-tennis-vision?sort=semver)](https://github.com/orientpine/table-tennis-vision/releases)
+[![Runtime: bun](https://img.shields.io/badge/runtime-bun%20%E2%89%A5%201.1-f9f1e1?logo=bun&logoColor=white)](https://bun.sh)
+[![Platform: iPhone Safari · Android Chrome](https://img.shields.io/badge/platform-iPhone%20Safari%20%C2%B7%20Android%20Chrome-0b1634)](#install-on-your-pc-with-tailscale)
+[![Price: free](https://img.shields.io/badge/price-free-ff8a1f)](LICENSE)
+
+</div>
+
+Table Tennis Vision is a **table tennis analysis web app** (a PWA) for **iPhone Safari** and other mobile browsers. Put the phone on a tripod beside the table and it shows, live on the picture:
+
+- **pose estimation** (skeletons for two players, MediaPipe Pose Landmarker)
+- **ball tracking** (colour and motion, no ML)
+- **rally time**, **shot count** and an **estimated shot speed** in km/h
+- a **bounce map** and each player's **standing position**
+
+All the computer vision runs on the phone. The camera stream never leaves it unless you turn on saving rally clips to your own PC. You run the small server on your own computer with [bun](https://bun.sh) and open it on your phone over HTTPS through [Tailscale](https://tailscale.com). There is no account, no subscription, and no cloud service of ours.
+
+> The app's screens are in Korean (it was built for a Korean table tennis club). This README explains every button in English.
+
+## Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Quick start (try it on your computer)](#quick-start-try-it-on-your-computer)
+- [Install on your PC with Tailscale](#install-on-your-pc-with-tailscale)
+- [Using it at the table](#using-it-at-the-table)
+- [Accuracy and limits](#accuracy-and-limits)
+- [Optional extras](#optional-extras)
+- [Adapting to another sport](#adapting-to-another-sport)
+- [Contributing](#contributing)
+- [Releases](#releases)
+- [License and third-party notices](#license-and-third-party-notices)
+
+## Features
+
+| | What you get |
+|---|---|
+| 🏓 **Live overlay** | Rally timer, shot count, estimated speed, shot type (drive / smash / lob / push, forehand / backhand by rule), ball trail with a **LOCK** box when the ball track is trusted |
+| 🧍 **Players** | Skeletons for the player at each end, MOVE distance, wrist angle, standing position behind or beside the table |
+| 🗺️ **Court map** | Bounces and standing positions on a top view of the table |
+| 📐 **One-time calibration** | Tap the four table corners once. The taps snap onto the white border and you confirm the outline |
+| 📱 **Phone first** | Portrait or landscape, full-screen picture with floating panels. Works on a tablet or a TV (AirPlay mirroring) as a big-screen layout |
+| 🎞️ **Rally history and replays** | Each rally's time, shots, top speed and bounce map. Clips can be saved to *your* PC with an unguessable share link (optional) |
+| 🛟 **Stable judging mode** | If the phone falls behind (repeated frames or under 12 reads per second), the picture shrinks so the analysis keeps up, then comes back |
+| 🔒 **Private by design** | On-device analysis, the server binds to `127.0.0.1` only, nothing is uploaded unless you turn it on |
+| 🧪 **Measurable** | Offline harness that scores ball, bounce and shot detection against the public [OpenTTGames](https://lab.osai.ai/) annotations |
 
 ## Screenshots
 
-![Live HUD computed by the app on the public OpenTTGames test_2 clip](docs/img/landscape-running.png)
+All screenshots are the real app computing on a clip from the public OpenTTGames dataset. They are not mock-ups.
 
-*Live HUD computed by the app on the public OpenTTGames test_2 clip.*
+| Portrait phone | Calibration (4 taps, snapped to the border) | Rally history |
+|---|---|---|
+| <img src="docs/img/portrait-running.png" alt="Portrait phone: LOCK on the ball at about 32 km/h, forehand drive label, player panels and court map" width="260"> | <img src="docs/img/calibrate.png" alt="Landscape calibration: four numbered corner marks on the table border, Undo, Again and Confirm buttons" width="420"> | <img src="docs/img/history.png" alt="Rally history sheet: one rally, 2.2 s, 3 shots, top about 53 km/h, bounce map" width="260"> |
 
-| Portrait | History |
+<img src="docs/img/tv-running.png" alt="Big-screen layout at 1920x1080: player panels, court map, LOCK on the server's ball toss" width="720">
+
+*Frames from the OpenTTGames dataset by OSAI (https://lab.osai.ai/), CC BY-NC-SA 4.0, changed: cropped, scaled, app overlay added. The images in `docs/img/` are under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), not MIT. The dataset itself is not included in this repository.*
+
+## Quick start (try it on your computer)
+
+You need [bun](https://bun.sh) 1.1 or newer, `git`, `curl` and `unzip`.
+
+```bash
+git clone https://github.com/orientpine/table-tennis-vision && cd table-tennis-vision
+bash install.sh && bun server.js
+```
+
+Open **http://localhost:8791/vision/** (keep the trailing slash). Desktop browsers treat `localhost` as secure, so the camera works there. No camera? Tap **영상 파일로 시험** (*Test with a video file*) and pick any table tennis video.
+
+`install.sh` checks your tools, runs `bun install`, downloads the pose models (sha256-checked) into `public/models/`, writes your settings file and does a test run (`/healthz` must answer 200). It is safe to run again. `bun test` runs the unit tests.
+
+## Install on your PC with Tailscale
+
+This is how the maintainer runs it at the club: the server stays on a PC at home or at the venue, and phones open it over HTTPS. A phone only allows camera access on HTTPS, and Tailscale gives your PC an HTTPS address with a real certificate, for free and without opening any port on your router.
+
+```text
+ phone (Safari/Chrome) ──HTTPS──▶ Tailscale ──▶ your PC: tailscale serve ──▶ bun server.js (127.0.0.1:8791)
+```
+
+**What you need**
+
+- A PC that stays on: Linux, macOS, or Windows 10/11 with [WSL](https://learn.microsoft.com/windows/wsl/install) (Ubuntu)
+- A phone: iPhone with Safari (the maintainer uses iOS 18) or Android with Chrome
+- A free Tailscale account (sign in with Google, Microsoft, GitHub or Apple)
+- A tripod or phone stand, about 1.5 to 2 m high
+
+### 1. Tailscale on the PC and the phone
+
+1. Install Tailscale on the PC: https://tailscale.com/download (on Linux: `curl -fsSL https://tailscale.com/install.sh | sh`, then `sudo tailscale up`).
+2. Install the Tailscale app on the phone (App Store or Google Play) and sign in with **the same account**.
+3. In the [admin console → DNS](https://login.tailscale.com/admin/dns), turn on **MagicDNS** and **HTTPS Certificates**. `tailscale serve` will also ask for this the first time.
+4. On Linux, let your user run `tailscale serve` without sudo (once):
+
+   ```bash
+   sudo tailscale set --operator=$USER
+   ```
+
+**Windows (WSL):** install Tailscale on **Windows**, not inside WSL. The app runs inside WSL and Windows forwards `localhost` to it.
+
+### 2. bun
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+Open a new terminal afterwards so `bun` is on your `PATH` (`bun --version` should print 1.1 or newer). On Linux/WSL you may need `sudo apt install -y git curl unzip` first.
+
+### 3. Get the code and install
+
+```bash
+git clone https://github.com/orientpine/table-tennis-vision
+cd table-tennis-vision
+bash install.sh
+```
+
+The last lines tell you what to do next. A good run ends with `/healthz 200: the server works.`
+
+### 4. Settings
+
+`install.sh` created `~/.config/pingpong-vision/deploy.env` from [`deploy.env.example`](deploy.env.example):
+
+```bash
+PORT=8791                # local port; the server listens on 127.0.0.1 only
+FUNNEL_PORT=443          # HTTPS port on your Tailscale name (443 = no port in the address)
+PPV_TS_MODE=serve        # serve: only your tailnet's devices; funnel: anyone with the link
+PPV_TOURNAMENT_URL=off   # scoreboard app for "PC save by PIN"; keep off (not in this repo)
+```
+
+Keep `serve` unless people outside your tailnet (for example a friend's phone without Tailscale) must open it. [Funnel](https://tailscale.com/kb/1223/funnel) puts it on the public internet and allows only ports 443, 8443 and 10000.
+
+### 5. Start it
+
+**Linux (systemd):** one command. It starts a user service that restarts on failure and on boot, waits for `/healthz`, and sets up `tailscale serve` (or funnel):
+
+```bash
+./start.sh
+loginctl enable-linger $USER   # keep it running when you are logged out (once)
+```
+
+It prints `URL: https://<your PC's MagicDNS name>:443/vision/` (the full name `tailscale serve status` shows). `./start.sh --restart` deploys the current checkout and restarts. The service runs a copy under `~/.local/share/pingpong-vision/releases/`, so editing the checkout changes nothing until you restart.
+
+**macOS, WSL, or by hand:** start the server, then share it once with Tailscale. The `--bg` setting is remembered across reboots.
+
+```bash
+bun server.js                                                         # terminal 1 (keep open)
+tailscale serve --bg --https=443 --set-path=/vision http://127.0.0.1:8791/vision   # terminal 2, once
+tailscale serve status                                                # shows your https:// address
+```
+
+On Windows run the `tailscale serve` line in PowerShell (Tailscale for Windows), and `bun server.js` inside WSL.
+
+### 6. Open it on the phone
+
+1. Make sure Tailscale is **connected** on the phone.
+2. Open `https://<your PC's MagicDNS name>/vision/` (the address from step 5).
+3. The first visit downloads about 20 MB (pose model and runtime). The loading bar counts the real bytes, and later visits use the cache.
+4. Add it to the home screen so it opens full screen like an app: **Safari** → Share → *Add to Home Screen*. **Chrome** → ⋮ → *Add to Home screen* / *Install app*.
+5. Tap **카메라 시작** (*Start camera*) and allow the camera.
+
+### 7. Start automatically (macOS)
+
+`start.sh` covers Linux. On macOS, a LaunchAgent keeps `bun server.js` running. Save this as `~/Library/LaunchAgents/local.table-tennis-vision.plist` (fix the two paths):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>local.table-tennis-vision</string>
+  <key>WorkingDirectory</key><string>/Users/YOU/table-tennis-vision</string>
+  <key>ProgramArguments</key><array><string>/Users/YOU/.bun/bin/bun</string><string>server.js</string></array>
+  <key>EnvironmentVariables</key><dict><key>PORT</key><string>8791</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict></plist>
+```
+
+```bash
+launchctl load -w ~/Library/LaunchAgents/local.table-tennis-vision.plist
+```
+
+### 8. Update
+
+```bash
+cd table-tennis-vision && git pull && bash install.sh
+./start.sh --restart        # Linux service; on macOS/by hand restart bun server.js instead
+```
+
+Check [Releases](https://github.com/orientpine/table-tennis-vision/releases) for what changed.
+
+### 9. Troubleshooting
+
+| Problem | Fix |
 |---|---|
-| ![Portrait layout while running](docs/img/portrait-running.png) | ![Rally history](docs/img/history.png) |
+| The camera button does nothing or says permission denied | The page must be `https://` (or `localhost`). On iPhone: Settings → Safari → Camera → *Ask* or *Allow*, then reload. Close other apps using the camera. |
+| `http://<PC's LAN IP>:8791` does not open | By design: the server only listens on `127.0.0.1`. Use the Tailscale `https://` address. |
+| The Tailscale `https://` address does not load on the phone | Tailscale must be connected on the phone with the same account. Run `tailscale serve status` on the PC and check that HTTPS Certificates is on in the admin console. The first certificate can take a minute. |
+| `tailscale serve` says *access denied* | Run `sudo tailscale set --operator=$USER` once, or put `sudo` in front. |
+| Funnel says it is not enabled | Funnel needs a tailnet policy change: follow the link it prints, or use `PPV_TS_MODE=serve`. |
+| Firewall | Nothing to open. Tailscale makes its own connection, and the app needs no inbound port. |
+| `install.sh` or `start.sh` says port 8791 is in use | Find it with `ss -ltnp \| grep 8791` (Linux) or `lsof -i :8791` (macOS). Set another `PORT` in `deploy.env`, run `bash install.sh` again, and use the new port in the `tailscale serve` command. |
+| `start.sh` stops with *set PPV_TOURNAMENT_URL* or *set FUNNEL_PORT* | Your `deploy.env` is missing that line. Copy it from `deploy.env.example`. |
+| The loading bar stops | The reason and **다시 받기** (*download again*) appear. Check the PC is online: the models are served by your PC, and the PC downloaded them in `install.sh`. |
+| `bun: command not found` | Open a new terminal after installing bun, or run `~/.bun/bin/bun`. |
+| Service logs (Linux) | `journalctl --user -u pingpong-vision -n 50` |
 
-Frames from OpenTTGames (https://lab.osai.ai/), CC BY-NC-SA 4.0. The dataset itself isn't included in this repo.
+## Using it at the table
 
-## Quick start (local)
+1. **Place the phone** on a tripod in line with the net, 2 to 3 m from the side of the table, 1.5 to 2 m high, looking slightly down, so the whole table and both players are in the picture. Keep it level. If the camera sits at table height, the table top becomes a line and bounces and speed cannot be computed. Placement details: [docs/system-design.md](docs/system-design.md).
+2. Tap **카메라 시작** (*Start camera*), or **영상 파일로 시험** (*Test with a video file*) to try a recording.
+3. **Calibrate once** with **코트 보정** (*court calibration*). Tap the four table corners in the order shown: (1) your end, left; (2) your end, right; (3) far end, right; (4) far end, left. The taps snap to the white border. Drag a point to fix it, then **확인** (*Confirm*). Calibration stays as long as the tripod does not move. Until it is done, or when the four points do not enclose a table top, the app does not look for the ball. It also pauses while the phone shakes.
+4. The two ends are **레드 사이드 / 블루 사이드** (red / blue side). If the players change ends, tap **자리 교체** (*swap places*). Set a left-handed player's racket hand in **설정** (*Settings*). It decides forehand or backhand.
+5. Play. Tap **정지** (*Stop*) when done, and open **기록** (*History*) for each rally's time, shot count, top speed and bounce map.
+6. On an iPad in landscape, or a phone mirrored to a TV, the app switches to the big-screen layout. You can pick it in Settings.
 
-Prerequisites: [bun](https://bun.sh) >= 1.1, `curl`, `unzip`, `sha256sum`.
+## Accuracy and limits
 
-```bash
-bun install
-bash scripts/fetch-models.sh   # pose models into public/models/, sha256-checked
-bun server.js                  # http://127.0.0.1:8791/vision/
-bun test
-```
+Measured with this release's code on OpenTTGames `test_2` (1080p, 120 fps source, 30 s), processed at 60 fps on a Linux PC with the command below. **This is not a measurement on an iPhone.**
 
-`scripts/fetch-models.sh` downloads `pose_landmarker_lite.task` and `pose_landmarker_full.task` (MediaPipe) plus `rtmpose-s.onnx` and `rtmpose-t.onnx` (RTMPose, extracted from the OpenMMLab zips) and verifies each against a pinned sha256. Run it again any time; files that already match are skipped.
+| Metric (`test_2`) | Result |
+|---|---|
+| Ball recall / precision (within 20 px, on annotated frames, n = 387) | 86.6% / 96.5% |
+| Bounce F1 (28 annotated bounces) | 83.3% (precision 96.9% when counting bounces the annotation skips) |
+| Bounce intervals with the right shot count | 15 / 16 |
 
-Open **http://localhost:8791/vision/** (keep the trailing slash). Desktop browsers treat `localhost` as a secure context, so the camera works there. No camera handy? Tap **Test with a video file** on the first screen (the UI is in Korean: **영상 파일로 시험**).
-
-Environment variables:
-
-| Variable | Default | What it does |
-|---|---|---|
-| `PORT` | `8791` | Port for `server.js` (always bound to `127.0.0.1`) |
-| `PPV_QA` | unset | `1` also serves the `qa/` pages |
-| `PPV_SAVE_DIR` | `~/pingpong-vision-saves` | Where uploaded rallies are stored |
-| `PPV_KEY_FILE` | `~/.config/pingpong-vision/upload-key` | Upload key file |
-| `PPV_SETUP_FILE` | `~/.config/pingpong-vision/setup-tokens.json` | One-time setup link tokens |
-
-## Serving to a phone over HTTPS
-
-Phones only give camera access to a secure context, so you need HTTPS. The server listens on `127.0.0.1` only, which means you always put a proxy or tunnel in front of it. Pick one:
-
-**(a) Tailscale**
-
-```bash
-# reachable only from devices on your tailnet
-tailscale serve --bg --set-path=/vision http://127.0.0.1:8791/vision
-# or public on the internet
-tailscale funnel --bg --set-path=/vision http://127.0.0.1:8791/vision
-```
-
-**(b) Caddy with your own domain** (Caddy gets the certificate for you)
-
-```caddy
-example.com {
-    handle /vision* {
-        reverse_proxy 127.0.0.1:8791
-    }
-}
-```
-
-**(c) Cloudflare Tunnel** (no domain needed for a quick test)
-
-```bash
-cloudflared tunnel --url http://127.0.0.1:8791
-```
-
-Then open `<printed url>/vision/` on the phone.
-
-### start.sh
-
-`start.sh` installs a systemd user unit (`pingpong-vision.service`), waits for `/healthz`, and mounts the app at `/vision` on Tailscale Funnel. It needs `FUNNEL_PORT` set, either in the environment or in `~/.config/pingpong-vision/deploy.env`:
-
-```bash
-FUNNEL_PORT=443
-PORT=8791
-```
-
-Funnel only allows ports 443, 8443 and 10000. `./start.sh --restart` restarts the service without changing the URL.
-
-### Optional: save rallies to your PC
-
-With saving turned on, the phone uploads each finished rally's clip and stats to `save-server.js`, and the history sheet gets a share link for it. On first start the server creates an upload key under `~/.config/pingpong-vision/`. `scripts/make-setup-link.mjs` makes a one-time link that hands the key to a phone. Never commit the key. Details are in [docs/save-to-pc.md](docs/save-to-pc.md).
-
-### Optional: auto-score a separate scoreboard app
-
-`public/js/point.js` judges who won each point from the bounce sequence (double bounce, out, miss), and `public/js/tournament.js` can enter that point into a scoreboard app served at `/` of the same origin, through its own `POST /api/action` with the scoreboard PIN. The PIN is typed once in Settings and stays on that phone; no address or PIN is in the code. A 3 s cancel button undoes a wrong call. The API the scoreboard has to provide, the accuracy on OpenTTGames, and the end-to-end test are in [docs/tournament-link.md](docs/tournament-link.md). Without a scoreboard app the vision app works on its own.
-
-## Usage
-
-1. Mount the phone on a tripod in line with the net, 2 to 3 m from the sideline, 1.5 to 2 m high, looking slightly down so the whole table and both players are in frame. Keep the picture level. If the camera sits at table height, the table top collapses into a line and bounces and speed can't be computed. See [docs/system-design.md](docs/system-design.md) for placement.
-2. Open the URL and tap **Start camera** (카메라 시작). Allow camera access.
-3. Calibrate the court once (코트 보정) by tapping the four table corners in the order the screen asks: 1 your end line, left corner; 2 your end line, right corner; 3 far end line, right corner; 4 far end line, left corner. Drag a point to fix it, then confirm. Calibration is kept as long as the tripod doesn't move. Until it's done, or when the area inside the four points doesn't look like a table top ("no table"), the app doesn't look for the ball or players. It also pauses while the phone is shaking.
-4. The player closest to your end becomes the near player, the other the far player. If they're swapped, tap **Swap players** (선수 바꾸기). For a left-handed player, switch their racket hand to left in Settings; it's used for forehand/backhand.
-5. Play. Tap **Stop** when done and open **History** (기록) for each rally's time, shot count, top speed and bounce map.
-6. An iPad in landscape or a phone mirrored to a TV switches to a large-screen layout. You can also pick it by hand in Settings (화면: 자동 / 폰 / 큰 화면(TV)).
-
-## Accuracy
-
-Measured on OpenTTGames `test_2` (1080p 120 fps source, 30 s) on a Linux PC, processed at 60 fps. **Not measured on an iPhone.**
-
-| Metric | Ball only (command below) | With pose boxes from a browser run |
-|---|---|---|
-| Ball recall / precision (within 20 px, on annotated frames) | 85.8% / 96.5% | 85.0% / 94.8% |
-| Bounce F1 (28 annotated bounces) | 83.3% | 85.2% |
-| Bounce intervals with the right shot count | 15/16 | 15/16 |
-| Shot speed, median error vs speeds from annotated ball positions | n/a | 11.4% |
-
-- At 30 fps (dark rooms) with pose boxes: ball 62.6% / 97.6% (83.6% / 97.0% counting trail points), bounce F1 80.7%, shots 15/16. The ball box appears about 0.13 s late because LOCK needs a smooth arc first.
-- Browser run (Chromium, 60 fps): both players' skeletons found in 73.8% of frames.
-- Empty scenes: 0 balls, shots and bounces on six no-table clips (tripod / gentle shake / strong shake, with and without corner taps). Those clips come from a private home recording and are not included.
-- Several bounce "false positives" sit where the annotation skips a bounce that must physically exist; counting those, bounce precision is about 97%.
-
-To reproduce, download `test_2.mp4` and the `test_2.zip` markup from https://lab.osai.ai/datasets/openttgames/data/ into `data/videos/` (gitignored), unzip the markup to `data/videos/test_2/`, then:
+Reproduce it: download `test_2.mp4` and `test_2.zip` from https://lab.osai.ai/datasets/openttgames/data/ into `data/videos/` (gitignored), unzip the markup to `data/videos/test_2/`, then run:
 
 ```bash
 bun qa/ball-offline.mjs --video=data/videos/test_2.mp4 \
@@ -123,112 +244,73 @@ bun qa/ball-offline.mjs --video=data/videos/test_2.mp4 \
 bun qa/score.mjs /tmp/test_2.offline.json data/videos/test_2 /tmp/test_2.score.json
 ```
 
-That prints `ball recall=85.8% precision=96.5% ... bounce ... F1=83.3% ... shots: 15/16` (checked from a fresh clone). `ball-offline.mjs` also takes `--srcFps` (default 120), `--fps` (default 60), `--procWidth` (default 640) and `--boxes=<pose dump>` to mask player bodies with pose boxes from `qa/eval-run.mjs --dumpPose=1` (browser run, needs `PPV_QA=1 PORT=8801 bun server.js`).
+**Limits** (please read before you rely on the numbers):
 
-`bench.html` (on-device pose speed test) needs one 1280x720 still with two players at `public/bench/frame.jpg`, which is not included. Make one from the same clip:
+- **Speed and distance are estimates from one camera.** Ball height is unknown, so positions are projected onto the table's centre line and scaled by the table length (2.74 m). A side view works best.
+- **The ball detector uses colour and motion**, tuned for a white ball (orange is experimental). White clothes, white walls and dark halls cause misses and false hits.
+- **Frame rate.** Safari asks for 60 fps and may drop to 30 fps in low light, where a fast ball can skip a bounce. The app warns about low light at calibration.
+- **Shot type is a rule**, not a model: forehand or backhand from which side of the body the wrist is on, drive / smash / lob / push from speed and arc. No spin.
+- **Two players only**, one at each end. Doubles and people walking past are not handled.
+- **The phone's speed varies.** `/vision/bench.html` measures pose speed on your phone. It needs one 1280x720 still with two players at `public/bench/frame.jpg` (not included), for example `ffmpeg -ss 0.9 -i data/videos/test_2.mp4 -frames:v 1 -vf scale=1280:720 -q:v 3 public/bench/frame.jpg`.
 
-```bash
-ffmpeg -ss 0.9 -i data/videos/test_2.mp4 -frames:v 1 -vf scale=1280:720 -q:v 3 public/bench/frame.jpg
-```
+## Optional extras
 
-## Limitations
+- **Save rallies to your PC.** Each finished rally's record and clip go to `save-server.js` on your PC (the folder is `0700`, with size and count caps). The rally gets a long, unguessable share link and a delete button. A one-time setup link hands the upload key to a phone. See [docs/save-to-pc.md](docs/save-to-pc.md). Never commit the key under `~/.config/pingpong-vision/`.
+- **Scoreboard link.** `public/js/point.js` judges who won each point from the bounce order (double bounce, out, miss). `public/js/tournament.js` can enter it into a scoreboard app served at `/` of the same origin, with a 3 s cancel bar, Korean score call-outs and one-tap let / fault prompts. **The scoreboard app is not part of this repository.** [docs/tournament-link.md](docs/tournament-link.md) describes the API it has to provide. Without one, everything else works on its own.
 
-- **Speed and distance are estimates from one camera.** Ball height is unknown, so positions are projected onto the table centerline and scaled by the table length (2.74 m). Side views work best.
-- **The ball detector is colour and motion based**, tuned for a white ball. White clothes or white backgrounds cause misses and false hits, and dark rooms hurt a lot (recall around 57 to 67% on dark clips).
-- **Frame rate:** Safari can only request 60 fps and drops to 30 fps in low light, where fast balls can skip a bounce.
-- **Shot type is a rule**, not a model: forehand/backhand from which side of the body the wrist is on, drive/smash/lob/push from speed and arc. No spin.
-- **Two players only** (near and far). Doubles and passers-by aren't handled.
-- **iPhone fps wasn't measured here.** Open `/vision/bench.html` on your phone to check.
+Environment variables of `server.js`:
 
-## Adapting to another sport (e.g. tennis)
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | `8791` | Port, always bound to `127.0.0.1` |
+| `PPV_QA` | unset | `1` also serves the `qa/` pages |
+| `PPV_SAVE_DIR` | `~/pingpong-vision-saves` | Where saved rallies go |
+| `PPV_KEY_FILE` | `~/.config/pingpong-vision/upload-key` | Upload key file (created on first start) |
+| `PPV_SETUP_FILE` | `~/.config/pingpong-vision/setup-tokens.json` | One-time setup link tokens |
+| `PPV_TOURNAMENT_URL` | unset | Scoreboard app that checks the PIN for PC save. Unset means that feature is off |
 
-Everything sport-specific lives in a handful of modules. Here's where to look.
+## Adapting to another sport
+
+Everything specific to table tennis lives in a handful of modules:
 
 | Concern | Where | What to change |
 |---|---|---|
-| Court geometry | `public/js/geom.js`: `TABLE_LENGTH` (2.74), `TABLE_WIDTH` (1.525), `TABLE_HEIGHT` (0.76), `makeCalibration` | Court size in metres. Tennis players stand on the court plane, so the floor drop by `TABLE_HEIGHT` becomes 0. |
-| Duplicated constants | `public/js/ui.js`: `TABLE_L`, `TABLE_W` (bounce map), `MOVE_SCALE_M`, `SHOT_SCALE_KMH` | Bounce map shape and meter scales (60 km/h is far too low for tennis). |
-| Player zone | `public/js/players.js`: `ZONE_M`, `plausiblePerson`, `MOVE_*` constants | Players can be well outside a tennis court; widen the zone. |
-| Ball appearance | `public/js/ball.js`: `BallDetector`, `BallTracker`, `pathResidual` | Colour, brightness, size and speed gates. A tennis ball is yellow-green and bigger. |
-| Scene gates | `public/js/pipeline.js`: `tableUniformity`, `TABLE_MIN_UNIFORM`, `TABLE_CHECK_EVERY`, `SHAKE_*`, `ISSUE_NO_TABLE` | The "is this a uniform table top" check assumes a small single-colour surface. A court has lines and mixed surfaces; loosen or replace it. |
-| Bounces, shots, rally end | `public/js/rally.js`: `RallyEngine` | Bounce detection, shot inference, rally timeout, near/far side via `TABLE_LENGTH / 2` (the net). |
-| Point winner | `public/js/point.js` (+ `test/point.test.js`, `qa/point-eval.mjs`) | Who lost the point from the bounce order. Rewrite for tennis rules: in/out by court lines, service boxes, one bounce allowed before the return. |
-| Shot labels | `public/js/rally.js`: `classifyKind` (speed thresholds 45/35/22 km/h), `strokeSide` | Tennis strokes (serve, volley, slice...) and new thresholds. |
-| Calibration UI | `public/js/ui.js`: `CALIB_STEPS`, `CALIB_DONE` | Tap court-line corners instead of table corners. |
-| HUD text | `public/js/hud.js` (`drawHud`), `public/js/ui.js`, Korean strings in `pipeline.js` | Labels and messages. |
-| Tests | `test/ball.test.js`, `test/rally.test.js`, `test/players.test.js` | Update fixtures and expected values. |
-| Offline harness | `qa/ball-offline.mjs`, `qa/score.mjs` (net x defaults to 920 px) | Point at your own annotated clips. |
-
-Checklist:
-
-- [ ] New court dimensions in `geom.js` and `ui.js`
-- [ ] Floor offset set to the court plane
-- [ ] Ball colour/size/speed gates retuned in `ball.js`
-- [ ] Table uniformity check replaced in `pipeline.js`
-- [ ] Bounce, rally end and shot labels rewritten in `rally.js`
-- [ ] Calibration prompts and HUD strings updated
-- [ ] `bun test` green with new fixtures
-- [ ] Recall/precision measured with the offline harness on real footage
-
-## Project layout
-
-| Path | Purpose |
-|---|---|
-| `server.js` | Bun static server on 127.0.0.1, `/healthz`, mounts the save API |
-| `save-server.js` | Optional rally upload, share links, upload key and setup tokens |
-| `build-id.js` | Build id and shell file list stamped into `sw.js` and `index.html` |
-| `start.sh` | systemd user unit plus Tailscale Funnel mount |
-| `public/` | The app: `index.html`, `style.css`, `sw.js`, manifest, fonts, icons, `bench.html` |
-| `public/js/app.js` | Wiring: camera, video file input, main loop, settings |
-| `public/js/pipeline.js` | Per-frame pipeline: table and shake gates, ball, players, rally |
-| `public/js/ball.js` | Colour/motion ball detector and tracker |
-| `public/js/pose.js` | Pose model loading and inference |
-| `public/js/players.js` | Near/far player assignment, MOVE distance, wrist angle |
-| `public/js/rally.js` | Rally engine: bounces, shots, speed, shot type |
-| `public/js/geom.js` | Homography, calibration, table constants |
-| `public/js/hud.js` | Canvas HUD: skeletons, ball trail, LOCK marker |
-| `public/js/ui.js` | DOM UI: panels, calibration, history, settings |
-| `public/js/recorder.js` | Rally clip recording for upload |
-| `public/js/bench.js` | On-device pose speed benchmark |
-| `public/js/point.js` | Point winner from the bounce sequence |
-| `public/js/tournament.js` | Optional link to a scoreboard app on the same origin |
-| `qa/` | Offline and browser harnesses (`ball-offline.mjs`, `score.mjs`, `empty-scene.mjs`, e2e scripts) |
-| `test/` | `bun test` unit tests |
-| `scripts/` | `fetch-models.sh`, `make-setup-link.mjs`, `scan-public.sh` (leak check of a committed tree, see below), `export-public.sh` |
-| `docs/` | `system-design.md`, `contract.md`, `save-to-pc.md`, `ui-guidelines.md` |
+| Court geometry | `public/js/geom.js`: `TABLE_LENGTH` (2.74), `TABLE_WIDTH` (1.525), `TABLE_HEIGHT` (0.76), `makeCalibration` | Court size in metres. On a court the players stand on the court plane, so the `TABLE_HEIGHT` floor drop becomes 0 |
+| Duplicated constants | `public/js/ui.js`: `TABLE_L`, `TABLE_W`, `MOVE_SCALE_M`, `SHOT_SCALE_KMH` | Bounce-map shape and meter scales |
+| Player zone | `public/js/players.js`: `ZONE_M`, `plausiblePerson` | Players can stand far outside a tennis court, so widen the zone |
+| Ball appearance | `public/js/ball.js`: `BallDetector`, `BallTracker`, `pathResidual` | Colour, brightness, size and speed gates (a tennis ball is yellow-green and bigger) |
+| Scene gates | `public/js/pipeline.js`: `tableUniformity`, `TABLE_MIN_UNIFORM`, `TABLE_CHECK_EVERY`, `SHAKE_*`, `ISSUE_NO_TABLE` | The "uniform table top" check assumes a small single-colour surface |
+| Bounces, shots, rally end | `public/js/rally.js`: `RallyEngine` | Bounce detection, shot inference, rally timeout, net at `TABLE_LENGTH / 2` |
+| Point winner | `public/js/point.js` (+ `test/point.test.js`, `qa/point-eval.mjs`) | Rewrite for the new rules (in/out by lines, service boxes, one bounce allowed) |
+| Shot labels | `public/js/rally.js`: `classifyKind` (45 / 35 / 22 km/h), `strokeSide` | New strokes and thresholds |
+| Calibration UI | `public/js/ui.js`: `CALIB_STEPS`, `CALIB_DONE` | Tap court-line corners instead of table corners |
+| HUD text | `public/js/hud.js` (`drawHud`), `public/js/ui.js`, strings in `pipeline.js` | Labels and messages (Korean today) |
+| Tests and harness | `test/*.test.js`, `qa/ball-offline.mjs`, `qa/score.mjs` | Fixtures, expected values, your own annotated clips |
 
 ## Contributing
 
-Never commit camera recordings, frames, keys or host names. Before pushing, check what is committed (the working tree also holds gitignored models and videos, so scan an archive of `HEAD`):
+Issues and pull requests are welcome, in English or Korean.
 
-```bash
-R=$(mktemp -d) && git archive HEAD | tar -x -C "$R" && bash scripts/scan-public.sh "$R"; rm -rf "$R"
-```
+- Run `bun test` before you open a PR. For UI changes, add a screenshot of the phone (393 px wide) and a landscape view.
+- **Never commit** camera recordings, frames of people (except public datasets), keys, host names or addresses. Check what you are about to push:
 
-## License
+  ```bash
+  R=$(mktemp -d) && git archive HEAD | tar -x -C "$R" && bash scripts/scan-public.sh "$R"; rm -rf "$R"
+  ```
 
-MIT © orientpine, see [LICENSE](LICENSE).
+- Architecture and data contracts: [docs/system-design.md](docs/system-design.md), [docs/contract.md](docs/contract.md), UI rules in [docs/ui-guidelines.md](docs/ui-guidelines.md).
 
-Third-party pieces (details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)):
+## Releases
 
-- Galmuri font, OFL-1.1 (`public/fonts/LICENSE-Galmuri-OFL.txt`)
-- MediaPipe tasks-vision and pose models, Apache-2.0
-- onnxruntime-web, MIT
-- RTMPose models (OpenMMLab), Apache-2.0
+Versions follow [semantic versioning](https://semver.org/). [CHANGELOG.md](CHANGELOG.md) (한국어 [CHANGELOG.ko.md](CHANGELOG.ko.md)) lists what changed in each version, in plain words. Downloads (source zip) are on the [Releases](https://github.com/orientpine/table-tennis-vision/releases) page. [RELEASING.md](RELEASING.md) describes how a release is made.
 
-OpenTTGames data isn't included (CC BY-NC-SA 4.0).
+## License and third-party notices
 
-## 한국어 요약
+MIT © orientpine, see [LICENSE](LICENSE). Free to use, change and share, also commercially. Keep the copyright notice.
 
-- **무엇**: 아이폰 Safari(최신 모바일 브라우저면 됨)에서 도는 탁구 분석 웹앱입니다. 탁구대 옆 삼각대에 폰을 세우면 두 선수 뼈대, 공 추적(색·움직임 기반, ML 없음), 랠리 시간·샷 수, 속도 추정(km/h), 샷 종류, 바운드 지도, 선수별 이동 거리(MOVE)·손목 각도, LOCK 표시를 폰 안에서 계산합니다.
-- **개인정보**: 카메라 영상은 폰 밖으로 나가지 않습니다. 단, 직접 켠 경우에만 랠리 하이라이트를 내 서버로 올리고 추측할 수 없는 공유 링크를 만듭니다.
-- **로컬 실행**: bun 1.1 이상, curl, unzip, sha256sum이 필요합니다. `bun install`, `bash scripts/fetch-models.sh`, `bun server.js` 순서로 실행하고 http://localhost:8791/vision/ 을 엽니다. 카메라가 없으면 첫 화면의 **영상 파일로 시험**을 씁니다. 테스트는 `bun test`.
-- **환경 변수**: `PORT`(기본 8791), `PPV_QA=1`, `PPV_SAVE_DIR`, `PPV_KEY_FILE`, `PPV_SETUP_FILE`.
-- **폰에서 쓰기**: 카메라는 HTTPS가 필요합니다. 서버는 127.0.0.1에만 붙으므로 Tailscale serve/funnel, Caddy, Cloudflare Tunnel 중 하나를 앞에 둡니다. `start.sh`는 systemd 유저 서비스와 Funnel을 설정하며 `FUNNEL_PORT`가 꼭 있어야 합니다.
-- **PC 저장(선택)**: 첫 실행 때 `~/.config/pingpong-vision/`에 업로드 열쇠가 생깁니다. 절대 커밋하지 마세요. 자세한 내용은 docs/save-to-pc.md.
-- **쓰는 법**: 네트 연장선 옆, 옆줄에서 2~3 m, 높이 1.5~2 m에서 살짝 내려다보게 둡니다. 코트 보정은 내 쪽 왼쪽, 내 쪽 오른쪽, 건너편 오른쪽, 건너편 왼쪽 모서리 순서입니다. 선수가 바뀌면 **선수 바꾸기**, 왼손잡이는 설정에서 왼손으로. 끝나면 **정지** 후 **기록**. 아이패드 가로나 TV 미러링은 큰 화면 배치가 됩니다.
-- **정확도**(OpenTTGames test_2, 리눅스 PC에서 60 fps로 처리, 아이폰 아님): 공 재현율 85.0%/정밀도 94.8%, 바운드 F1 85.2%, 샷 15/16, 속도 중앙 오차 11.4%(자세 상자 포함). README 명령(공만)으로는 85.8%/96.5%, 바운드 F1 83.3%, 샷 15/16. 30 fps에서는 공 62.6%/97.6%, 바운드 F1 80.7%, 샷 15/16. 두 선수 뼈대 검출 73.8%(Chromium 60 fps). 탁구대 없는 영상 6개에서 오탐 0.
-- **한계**: 속도·거리는 카메라 한 대 추정치입니다. 흰 공 기준이라 흰 옷·흰 배경·어두운 곳에 약합니다(어두운 영상 재현율 약 57~67%). 어두우면 30 fps로 떨어집니다. 샷 종류는 규칙 기반이고 스핀은 모릅니다. 선수는 두 명만. 아이폰 fps는 폰에서 `/vision/bench.html`로 직접 재세요.
-- **대회 점수판 연동(선택)**: `point.js`가 바운드 순서로 포인트 승패를 판정하고, `tournament.js`가 같은 주소 `/`의 점수판 앱에 PIN으로 점수를 넣습니다. PIN은 설정에서 한 번 넣고 그 폰에만 남습니다. 자세한 것은 docs/tournament-link.md.
-- **다른 종목(테니스)으로 바꾸기**: 위 "Adapting to another sport" 표를 보세요. 코트 크기(`geom.js`, `ui.js`), 공 판정(`ball.js`), 탁구대 균일도 검사(`pipeline.js`), 바운드·샷 규칙(`rally.js`), 보정 안내 문구(`ui.js`), 테스트와 오프라인 측정 도구를 고치면 됩니다.
-- **라이선스**: MIT © orientpine. Galmuri 폰트 OFL-1.1, MediaPipe·RTMPose 모델 Apache-2.0, onnxruntime-web MIT. OpenTTGames 데이터는 포함하지 않습니다(CC BY-NC-SA 4.0).
+Third-party parts (details in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)):
+
+- Galmuri pixel font, SIL OFL 1.1 (`public/fonts/LICENSE-Galmuri-OFL.txt`)
+- MediaPipe Tasks Vision and the Pose Landmarker models, Apache-2.0
+- ONNX Runtime Web, MIT; RTMPose models (OpenMMLab), Apache-2.0 (used by the benchmark page only)
+- OpenTTGames data is **not** included. The images in `docs/img/` (banner GIF, screenshots, social preview) contain frames from it and are licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (attribution: OpenTTGames, OSAI, https://lab.osai.ai/), not MIT.

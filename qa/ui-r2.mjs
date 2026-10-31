@@ -1,7 +1,7 @@
 // qa/ui-r2.mjs - real-app WebKit flow with layout, type-grid and LOCK assertions in four viewports.
 //
 //   bun qa/ui-r2.mjs --base=http://127.0.0.1:8802/vision/ --clip=data/videos/clip12_720p60.webm \
-//     --corners='[{"x":356,"y":634},{"x":482,"y":520},{"x":1370,"y":532},{"x":1484,"y":660}]' \
+//     --corners='[{"x":355,"y":634},{"x":557,"y":519},{"x":1339,"y":535},{"x":1486,"y":659}]' \
 //     --vps=p852,p659,l393,tv --tag=after --out=evidence/r2/ui
 //
 // Flow per viewport (same as qa/ui-webkit.mjs, real app, real file chooser, values computed from
@@ -21,15 +21,17 @@
 //              time, trail or skeleton) from the clip; lockSeen records whether a LOCK was live
 //
 // Corners are given in the 1920x1080 frame of OpenTTGames test_2 and mapped onto the clip's real
-// size. A portrait clip made by padding the 16:9 picture (see evidence/r2/ui/NOTES.md) is handled
+// size. They are the corners read from 4x zoomed crops; the set used until 2026-10-29 was up to
+// 75 px off at the far end, so the app's corner snap (calib-refine.js) correctly moved those taps
+// ~47 px and the old "saved == tapped" assertion failed on the real table. A portrait clip made by padding the 16:9 picture (see evidence/r2/ui/NOTES.md) is handled
 // by centring the 16:9 content vertically.
-import { devices, webkit } from "playwright";
+import { chromium, devices, webkit } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split(/=(.*)/s).slice(0, 2)));
 const base = args.base || "http://127.0.0.1:8802/vision/";
 const clip = args.clip || "data/videos/clip12_720p60.webm";
-const corners = JSON.parse(args.corners || '[{"x":356,"y":634},{"x":482,"y":520},{"x":1370,"y":532},{"x":1484,"y":660}]');
+const corners = JSON.parse(args.corners || '[{"x":355,"y":634},{"x":557,"y":519},{"x":1339,"y":535},{"x":1486,"y":659}]');
 const out = args.out || "evidence/r2/ui";
 const tag = args.tag || "after";
 const vps = (args.vps || "p852,p659,l393,tv").split(",");
@@ -41,6 +43,7 @@ const PRESETS = {
   p852: { ...iphone, viewport: { width: 393, height: 852 }, portrait: true },
   p659: { ...iphone, viewport: { width: 393, height: 659 }, portrait: true },
   l393: { ...iphone, viewport: { width: 852, height: 393 }, portrait: false },
+  pad: { viewport: { width: 768, height: 1024 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, portrait: true },
   tv: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, portrait: false },
 };
 
@@ -90,6 +93,8 @@ function measurePage() {
   for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) if (hits(panels[keys[i]], panels[keys[j]])) overlaps.push(`${keys[i]}~${keys[j]}`);
   const outside = Object.entries(panels).filter(([, p]) => p.x < -0.5 || p.y < -0.5 || p.x + p.w > W + 0.5 || p.y + p.h > H + 0.5).map(([k]) => k);
   const ctlOutside = controls.filter((c) => c.x < -0.5 || c.y < -0.5 || c.x + c.w > W + 0.5 || c.y + c.h > H + 0.5).map((c) => c.name);
+  // content wider than its own panel is cut off at the panel edge (court footer, long labels)
+  const clipped = [...document.querySelectorAll(".panel, .strip")].filter(vis).filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => String(el.className));
 
   // text: every visible element that owns a non-blank text node
   const fonts = [];
@@ -112,7 +117,7 @@ function measurePage() {
   return {
     viewport: { w: W, h: H, dpr: devicePixelRatio, visual: window.visualViewport ? Math.round(window.visualViewport.height) : null },
     layout: document.querySelector(".app")?.getAttribute("data-layout"), fit: document.querySelector(".app")?.getAttribute("data-fit"), mode: state && state.mode,
-    controls: controls.length, small, hOverflow: document.documentElement.scrollWidth > W, vOverflow: document.documentElement.scrollHeight > H,
+    controls: controls.length, small, clipped, hOverflow: document.documentElement.scrollWidth > W, vOverflow: document.documentElement.scrollHeight > H,
     panels, video, videoCover, overlaps, outside, ctlOutside, fonts, canvasFonts, canvasFamily,
     lock: { state: !!(state && state.ball && state.ball.lock), drawn: overlay ? overlay.dataset.lock || "" : "" },
   };
@@ -143,8 +148,13 @@ async function runViewport(vp) {
   if (!preset) throw new Error(`unknown viewport ${vp}`);
   const { portrait, ...ctxOpts } = preset;
   const hasTouch = !!ctxOpts.hasTouch;
-  const browser = await webkit.launch(process.env.PPV_WEBKIT ? { executablePath: process.env.PPV_WEBKIT } : {});
+  // --engine=chromium runs the same flow where WebKit cannot launch (this host has no
+  // libavif.so.16 / libbacktrace.so.0); the Safari engine stays the default.
+  const browser = args.engine === "chromium"
+    ? await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] })
+    : await webkit.launch(process.env.PPV_WEBKIT ? { executablePath: process.env.PPV_WEBKIT } : {});
   const ctx = await browser.newContext(ctxOpts);
+  await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
   const page = await ctx.newPage();
   const consoleErrors = [];
   page.on("console", (m) => {
@@ -153,7 +163,7 @@ async function runViewport(vp) {
   });
   page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
   const steps = [];
-  const asserts = { tap: [], overflow: [], cover: [], overlap: [], grid: [], lock: [], live: [] };
+  const asserts = { tap: [], overflow: [], cover: [], overlap: [], grid: [], lock: [], live: [], stand: [], ballColor: [] };
   const shot = (nm) => page.screenshot({ path: `${out}/${tag}-${vp}-${nm}.png` });
   const step = async (nm, fn) => {
     try {
@@ -173,7 +183,7 @@ async function runViewport(vp) {
   const judge = (where, m, { cover = portrait, grid = true } = {}) => {
     const f = fontFindings(m.fonts);
     asserts.tap.push({ where, pass: m.small.length === 0 && m.ctlOutside.length === 0, small: m.small, outside: m.ctlOutside });
-    asserts.overflow.push({ where, pass: !m.hOverflow && m.outside.length === 0, hOverflow: m.hOverflow, outside: m.outside });
+    asserts.overflow.push({ where, pass: !m.hOverflow && m.outside.length === 0 && m.clipped.length === 0, hOverflow: m.hOverflow, outside: m.outside, clipped: m.clipped });
     if (cover) asserts.cover.push({ where, pass: m.videoCover.length === 0, videoCover: m.videoCover, video: m.video && { x: m.video.x, y: m.video.y, w: m.video.w, h: m.video.h }, panels: m.panels });
     asserts.overlap.push({ where, pass: m.overlaps.length === 0, overlaps: m.overlaps });
     if (grid) asserts.grid.push({ where, pass: f.offGridCount === 0 && f.nonPixelCount === 0 && f.tooSmallCount === 0, ...f, canvasFonts: m.canvasFonts, canvasFamily: m.canvasFamily });
@@ -212,6 +222,11 @@ async function runViewport(vp) {
       await page.waitForTimeout(200);
     }
     await shot("03b-calibrate-4-placed");
+    // The steps from here to Stop take longer than the whole 12 s clip, and the app stops itself at
+    // a file's end, so Stop sometimes met a stopped app. Loop the test clip from the start for this
+    // session (the app opens files with loop=false; end-of-file-stop below reopens it and tests the
+    // self-stop on its own).
+    await page.evaluate(() => { const v = document.querySelector("video"); if (v) { v.currentTime = 0; v.loop = true; } });
     await tapLoc(page.getByRole("button", { name: /확인/ }), { timeout: 5000 });
     try {
       await waitMode(["running"], 10000);
@@ -231,7 +246,9 @@ async function runViewport(vp) {
       return 1 / Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
     });
     const errCss = err / videoPxPerCssPx;
-    if (errCss > 1.5) throw new Error(`corner error ${err.toFixed(2)} video px = ${errCss.toFixed(2)} CSS px`);
+    // The fourth tap snaps the corners onto the table's white border, so the saved corners sit a
+    // few px from the taps; more than 8 px (1080p scale) means a wrong snap, not a refinement.
+    if (err > 8 * k) throw new Error(`corner error ${err.toFixed(2)} video px = ${errCss.toFixed(2)} CSS px`);
     return { maxCornerErrorVideoPx: Math.round(err * 100) / 100, maxCornerErrorCssPx: Math.round(errCss * 100) / 100, calibrating: before };
   });
   await step("running-hud", async () => {
@@ -248,6 +265,19 @@ async function runViewport(vp) {
         return { paused: v.paused, readyState: v.readyState, currentTime: Math.round(v.currentTime * 100) / 100, error: v.error && v.error.code };
       });
       const lock = { state: m.lock.state, drawn: m.lock.drawn === "1" };
+      // standing position: the court map shows a dot per player with a stand in state, the
+      // overlay draws only stands that are in state (one on screen may be clipped off the picture)
+      const standView = await page.evaluate(() => ({
+        court: [...document.querySelectorAll(".court__svg .cm-stand")].map((c) => c.getAttribute("class")),
+        drawn: document.querySelector(".stage__overlay").dataset.stands || "",
+        dist: [...document.querySelectorAll(".court__dist")].map((d) => d.textContent),
+        // read in the same task as the DOM: a separate evaluate can land on another frame
+        stands: Object.fromEntries(["near", "far"].map((p) => { const st = window.__ppv.state.players[p].stand; return [p, st ? { behindM: Math.round(st.behindM * 100) / 100, sideM: Math.round(st.sideM * 100) / 100, stale: st.stale } : null]; })),
+      }));
+      const stState = standView.stands;
+      const nState = ["near", "far"].filter((p) => stState[p]).length;
+      const drawnSides = standView.drawn ? standView.drawn.split("|").map((x) => x.split(":")[0]) : [];
+      asserts.stand.push({ where: `run-${at}s`, pass: standView.court.length === nState && drawnSides.every((p) => stState[p]), state: stState, court: standView.court, drawn: standView.drawn, dist: standView.dist });
       asserts.lock.push({ where: `run-${at}s`, pass: lock.state === lock.drawn, ...lock, lockValue: s.ball && s.ball.lock ? { side: s.ball.lock.side, speedKmh: s.ball.lock.speedKmh } : null });
       const hud = {
         rallyTimeMs: Math.round(s.rally.timeMs), shots: s.rally.shots, speedKmh: s.rally.speedKmh,
@@ -263,6 +293,8 @@ async function runViewport(vp) {
     // (1.5 s in) may still read 0; the later two must not
     const livePass = samples.slice(1).every((x) => x.fps > 0) && samples.some((x) => x.trail > 0 || x.hud.rallyTimeMs > 0) && (!requirePoses || samples.some((x) => x.poses >= 1));
     const lockSeen = asserts.lock.some((l) => l.where.startsWith("run-") && l.state);
+    // the clip shows both players' feet, so a stand must have been computed and drawn at least once
+    if (requirePoses) asserts.stand.push({ where: "running-seen", pass: asserts.stand.some((x) => x.court.length > 0 && x.drawn) });
     asserts.live.push({ where: "running", pass: livePass, lockSeen, samples: samples.map((x) => ({ at: x.at, fps: x.fps, trail: x.trail, poses: x.poses, shots: x.shots, rallyTimeMs: x.hud.rallyTimeMs, tracking: x.hud.tracking })) });
     if (!livePass) throw new Error(`no live processing: ${JSON.stringify(samples)}`);
     return { samples, measured };
@@ -277,23 +309,63 @@ async function runViewport(vp) {
     await page.locator(".popover").evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const end = await measure();
     await shot("05c-settings-scrolled");
+    // A control in the middle of a long popover is off screen at both the top and the end; it
+    // counts as unreachable only if scrolling it into view inside the popover still leaves it out.
+    const both = top.ctlOutside.filter((n) => end.ctlOutside.includes(n));
+    const unreachable = await page.evaluate((names) => {
+      const pop = document.querySelector(".popover");
+      const out = [];
+      for (const nm of names) {
+        const el = [...pop.querySelectorAll("button, input, label")].find((e) => (e.getAttribute("aria-label") || e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 24) === nm);
+        if (!el) { out.push(nm); continue; }
+        el.scrollIntoView({ block: "center" });
+        const r = el.getBoundingClientRect();
+        if (r.left < -0.5 || r.top < -0.5 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) out.push(nm);
+      }
+      return out;
+    }, both);
     await page.locator(".popover").evaluate((el) => { el.scrollTop = 0; });
-    const m = judge("settings", { ...top, ctlOutside: top.ctlOutside.filter((n) => end.ctlOutside.includes(n)), small: [...new Set([...top.small, ...end.small])] }, { cover: false });
+    const m = judge("settings", { ...top, ctlOutside: unreachable, small: [...new Set([...top.small, ...end.small])] }, { cover: false });
+    // ball colour: 주황 switches the engine's detector, is saved, and 흰색 switches back
+    const group = page.getByRole("group", { name: "공 색" });
+    const color = () => page.evaluate(() => ({ state: window.__ppv.state.ballColor, detector: window.__ppv.pipeline?.detector?.color ?? null, saved: localStorage.getItem("ppv.ballColor") }));
+    const startColor = await color();
+    const orangeBtn = group.getByRole("button", { name: "주황" });
+    await orangeBtn.scrollIntoViewIfNeeded();
+    const box = await orangeBtn.boundingBox();
+    await tapLoc(orangeBtn);
+    const orange = { ...(await color()), pressed: await orangeBtn.getAttribute("aria-pressed") };
+    await shot("05d-settings-orange");
+    await tapLoc(group.getByRole("button", { name: "흰색" }));
+    const white = await color();
+    asserts.ballColor.push({
+      where: "settings", startColor, orange, white, box,
+      pass: startColor.state === "white" && orange.state === "orange" && orange.detector === "orange" && orange.saved === '"orange"' && orange.pressed === "true" && white.state === "white" && white.detector === "white" && box && box.width >= 44 && box.height >= 44,
+    });
+    await page.locator(".popover").evaluate((el) => { el.scrollTop = 0; });
     await page.keyboard.press("Escape");
     await page.waitForSelector(".popover[hidden]", { state: "attached", timeout: 5000 });
     return m;
   });
   await step("swap-players", async () => {
-    const before = await page.evaluate(() => window.__ppv.pipeline.players.swapped);
-    await tapLoc(page.getByRole("button", { name: /선수 바꾸기/ }));
-    const after = await page.evaluate(() => window.__ppv.pipeline.players.swapped);
-    if (before === after) throw new Error("swap flag unchanged");
-    return { before, after };
+    // since the sides merge (vision #44) red and blue stay at their ends: an unlinked swap trades the
+    // players' own settings (racket hand, MOVE) between the ends and says so; tracking stays per end
+    const read = () => page.evaluate(() => { const p = window.__ppv.pipeline.players; return { near: { hand: p.near.hand, moveM: p.near.moveM }, far: { hand: p.far.hand, moveM: p.far.moveM } }; });
+    const before = await read();
+    await tapLoc(page.getByRole("button", { name: /자리 교체/ }));
+    const notice = await page.waitForFunction(() => { const t = document.querySelector(".toast.show"); return t && /자리 교체/.test(t.textContent) && t.textContent; }, null, { timeout: 3000 }).then((h) => h.jsonValue(), () => null);
+    const after = await read();
+    const traded = after.near.hand === before.far.hand && after.far.hand === before.near.hand && after.near.moveM === before.far.moveM && after.far.moveM === before.near.moveM;
+    if (!notice || !traded) throw new Error(`swap not seen: ${JSON.stringify({ notice, before, after })}`);
+    return { before, after, notice };
   });
   await step("stop", async () => {
+    // Stop is tapped on every run; the looping clip keeps the app running until then.
+    const media = await page.evaluate(() => { const v = document.querySelector("video"); return { t: v.currentTime, loop: v.loop, ended: v.ended }; });
+    if (media.ended || (await st()).mode !== "running") throw new Error(`app not running before Stop: ${JSON.stringify(media)}`);
     await tapLoc(page.getByRole("button", { name: /정지/ }).first(), { timeout: 5000 });
     await waitMode(["stopped"], 5000);
-    return judge("stopped", await measure());
+    return { videoTimeAtStop: Math.round(media.t * 10) / 10, ...judge("stopped", await measure()) };
   });
   await step("history", async () => {
     await tapLoc(page.getByRole("button", { name: /기록/ }).first(), { timeout: 5000 });
@@ -328,6 +400,49 @@ async function runViewport(vp) {
     asserts.lock.push({ where: "unit", pass, ...r });
     if (!pass) throw new Error(`lock unit: ${JSON.stringify(r)}`);
     return r;
+  });
+  await step("end-of-file-stop", async () => {
+    // A file must stop the app by itself when it ends. Reopen the clip (the saved calibration is
+    // restored, so it runs straight away), jump to 1.5 s before the end and wait for the stop.
+    await page.locator('input[type="file"]').first().setInputFiles(clip);
+    try {
+      await waitMode(["running"], 30000);
+    } catch (err) {
+      const diag = await page.evaluate(() => {
+        const v = document.querySelector("video");
+        const s = window.__ppv.state;
+        return { mode: s.mode, source: s.source, error: s.error, calibration: !!s.calibration, showHistory: s.showHistory, inputs: document.querySelectorAll('input[type="file"]').length, paused: v.paused, readyState: v.readyState, currentTime: v.currentTime, mediaError: v.error && v.error.code, src: (v.currentSrc || "").slice(0, 30) };
+      });
+      throw new Error(`reopened file not running: ${JSON.stringify(diag)}`);
+    }
+    await page.evaluate(() => { const v = document.querySelector("video"); v.currentTime = Math.max(0, v.duration - 1.5); });
+    await waitMode(["stopped"], 10000);
+    const ended = await page.evaluate(() => document.querySelector("video").ended);
+    if (!ended) throw new Error("stopped, but the video did not reach its end");
+    return { ended, mode: (await st()).mode };
+  });
+  await step("ball-color-persists", async () => {
+    // the choice survives a reload and is the engine's colour from the first frame
+    await page.evaluate(() => localStorage.setItem("ppv.ballColor", '"orange"'));
+    await page.reload({ waitUntil: "networkidle" });
+    const after = await page.evaluate(() => window.__ppv.state.ballColor);
+    asserts.ballColor.push({ where: "reload", pass: after === "orange", after });
+    if (after !== "orange") throw new Error(`after reload ballColor=${after}`);
+    // the test clip has a white ball: with orange chosen the strip says "공 색이 흰색 같아요"
+    await page.locator('input[type="file"]').first().setInputFiles(clip);
+    // after a reload the pose model loads again (over the public URL that took over 30 s)
+    await waitMode(["running"], 120000);
+    const hint = await page.waitForFunction(() => {
+      const c = [...document.querySelectorAll(".strip .chip, .stage__chips .chip")].find((n) => !n.closest("[hidden]") && /공 색이 흰색/.test(n.textContent));
+      if (!c) return null;
+      const r = c.getBoundingClientRect();
+      return { text: c.textContent, inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, lockedOrange: !!window.__ppv.state.ball.lock };
+    }, null, { timeout: 9000 }).then((h) => h.jsonValue()).catch(() => null);
+    const hintScreen = hint ? judge("orange-hint", await measure()) : null;
+    await shot("11b-orange-on-white-hint");
+    await page.evaluate(() => localStorage.setItem("ppv.ballColor", '"white"'));
+    asserts.ballColor.push({ where: "hint", pass: !!(hint && hint.inView), hint });
+    return { after, hint, overflow: hintScreen && { clipped: hintScreen.clipped, outside: hintScreen.outside } };
   });
   await browser.close();
   const summary = Object.fromEntries(Object.entries(asserts).map(([k, v]) => [k, v.length ? (v.every((x) => x.pass) ? "PASS" : "FAIL") : "N/A"]));

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { BallTracker } from "../public/js/ball.js";
+import { BallDetector, BallTracker, isOrange } from "../public/js/ball.js";
 import { Pipeline } from "../public/js/pipeline.js";
 
 const CORNERS = [
@@ -16,6 +16,31 @@ function rng(seed) {
 
 // The pipeline's tracker settings for a 640 px wide processing frame.
 const tracker = () => new BallTracker({ gate: 640 * 0.12 * 0.35, initGate: 640 * 0.12, minSpeed: 64 });
+
+describe("orange ball colour", () => {
+  test("blurred and deep orange ball pixels pass; skin, red-orange shirt, red, yellow, white, table and dim wood do not", () => {
+    // ball pixels at 640 px from the synthetic orange test_2 (blur mixed with the table) and a deep orange
+    for (const [r, g, b] of [[132, 109, 58], [151, 108, 33], [173, 134, 26], [154, 140, 79], [255, 130, 15]]) expect(isOrange(r, g, b)).toBe(true);
+    // skin, the far player's red-orange shirt, red board, yellow, white, table blue, green, dim wood
+    for (const [r, g, b] of [[220, 170, 140], [180, 70, 40], [200, 50, 40], [250, 235, 40], [240, 240, 235], [30, 40, 160], [60, 140, 60], [125, 100, 40]]) expect(isOrange(r, g, b)).toBe(false);
+  });
+
+  test("the orange detector finds a moving orange ball on a blue table and ignores a moving white one", () => {
+    const w = 64, h = 48;
+    const frame = (bx, color) => {
+      const px = new Uint8ClampedArray(w * h * 4);
+      for (let i = 0; i < w * h; i++) px.set([30, 40, 150, 255], i * 4);
+      for (let y = 20; y < 24; y++) for (let x = bx; x < bx + 4; x++) px.set([...color, 255], (y * w + x) * 4);
+      return px;
+    };
+    for (const [color, want] of [[[230, 140, 40], 1], [[235, 235, 235], 0]]) {
+      const det = new BallDetector({ width: w, height: h, color: "orange" });
+      let found = 0;
+      for (let i = 0; i < 6; i++) found = det.detect(frame(6 + i * 8, color)).length;
+      expect(found).toBe(want);
+    }
+  });
+});
 
 describe("BallTracker lock", () => {
   test("a ball flying a parabola is locked within about 0.13 s, at 60 and at 30 fps", () => {
@@ -48,11 +73,72 @@ describe("BallTracker lock", () => {
     expect(followed).toBeGreaterThan(frames * 0.5);
     expect(locked).toBeLessThan(frames * 0.01);
   });
+
+  test("a ball flying over the table takes over from a fast, rough blob beside it (a swinging arm)", () => {
+    const tr = tracker();
+    tr.overTable = { x0: 200, x1: 560 };
+    const rand = rng(9);
+    let onBall = 0;
+    let frames = 0;
+    for (let i = 0; i < 90; i++) {
+      const t = i / 60;
+      // Arm: circles beside the table at ~420 px/s with 3 px of jitter, there from the start.
+      const arm = { x: 80 + 40 * Math.cos(t * 12) + rand() * 6 - 3, y: 200 + 40 * Math.sin(t * 12) + rand() * 6 - 3, area: 8 };
+      const cands = [arm];
+      const tb = t - 0.5;
+      const ball = tb >= 0 ? { x: 230 + 300 * tb, y: 150 - 200 * tb + 400 * tb * tb, area: 6 } : null;
+      if (ball) cands.push(ball);
+      const hit = tr.update(cands, t);
+      if (ball && tb >= 0.25) {
+        frames++;
+        if (hit && hit.locked && Math.hypot(hit.x - ball.x, hit.y - ball.y) < 3) onBall++;
+      }
+    }
+    expect(onBall).toBeGreaterThan(frames * 0.9);
+  });
+
+  test("a flight towards the lens with blurry blobs locks only with the end-on cubic", () => {
+    // Pinhole camera low behind the table, the ball coming at the lens (2.5 m to 0.4 m), plus
+    // the +-2.5 px centroid jitter of a compressed club clip's blurred ball blobs (quadratic
+    // residual there 3.6-7.5 px, cubic 1.7-3.1 px).
+    const sign = [1, -1, -1, 1, 1, -1, 1, -1, -1, 1];
+    const path = (t, i) => {
+      const Z = 2.5 - 6 * t;
+      const j = 2.5 * sign[i % 10];
+      return { x: 320 + (900 * 0.3 * t) / Z + j, y: 180 + (900 * (0.9 - t + 4.9 * t * t)) / Z - j, area: 6 };
+    };
+    const lockedWith = (lockCubic) => {
+      const tr = tracker();
+      tr.lockCubic = lockCubic;
+      let locked = 0;
+      for (let i = 0; i < 21; i++) {
+        const hit = tr.update([path(i / 60, i)], i / 60);
+        if (hit && hit.locked) locked++;
+      }
+      return locked;
+    };
+    expect(lockedWith(0)).toBe(0);
+    expect(lockedWith(1.5)).toBeGreaterThan(8);
+  });
+});
+
+describe("end-on view", () => {
+  test("the cubic lock is off by default, and when turned on it applies to an end-on view only", () => {
+    const END_ON = [{ x: 358, y: 311 }, { x: 615, y: 320 }, { x: 733, y: 273 }, { x: 551, y: 268 }];
+    const pipe = new Pipeline();
+    pipe.setVideoSize(1068, 600);
+    pipe.setCalibration(END_ON);
+    expect(pipe.tracker.lockCubic).toBe(0);
+    pipe.setEndOnCubic(true);
+    expect(pipe.tracker.lockCubic).toBeGreaterThan(0);
+    pipe.setCalibration(CORNERS.map((p) => ({ x: p.x * (1068 / 1920), y: p.y * (600 / 1080) })));
+    expect(pipe.tracker.lockCubic).toBe(0);
+  });
 });
 
 // Synthetic 640x360 frames for a 1920x1080 video: a flat blue table colour (or a cluttered room),
 // optionally shifted like a hand-held phone, with a small white ball on a parabola.
-function frames({ room = false, shake = false, n = 90 }) {
+function frames({ room = false, shake = false, n = 90, ball = [250, 250, 250] }) {
   const w = 640, h = 360;
   const rand = rng(3);
   const tex = new Uint8Array(w * h * 3);
@@ -83,7 +169,9 @@ function frames({ room = false, shake = false, n = 90 }) {
     const bx = Math.round(160 + 300 * t), by = Math.round(150 - 120 * t + 200 * t * t);
     for (let y = by - 2; y <= by + 2; y++) for (let x = bx - 2; x <= bx + 2; x++) {
       const o = (y * w + x) * 4;
-      rgba[o] = rgba[o + 1] = rgba[o + 2] = 250;
+      rgba[o] = ball[0];
+      rgba[o + 1] = ball[1];
+      rgba[o + 2] = ball[2];
     }
     out.push({ t, rgba });
   }
@@ -105,6 +193,33 @@ function run(opts, corners = CORNERS) {
   }
   return { locked, trail, tracking };
 }
+
+describe("ball colour setting", () => {
+  const runColor = (ballColor, ball) => {
+    const p = new Pipeline({ ballColor });
+    p.setVideoSize(1920, 1080);
+    p.setCalibration(CORNERS);
+    let locked = 0, hint = null;
+    for (const { t, rgba } of frames({ ball, n: 150 })) {
+      p.processPixels(rgba, t);
+      const s = p.snapshot(t);
+      if (s.ball.lock) locked++;
+      hint = s.colorHint;
+    }
+    return { locked, hint };
+  };
+
+  test("orange chosen: an orange ball is locked with no hint; a white ball is not locked and the hint asks to check the colour", () => {
+    const orange = runColor("orange", [235, 135, 30]);
+    expect(orange.locked).toBeGreaterThan(30);
+    expect(orange.hint).toBeNull();
+    const white = runColor("orange", [250, 250, 250]);
+    expect(white.locked).toBe(0);
+    expect(white.hint).toBe("공 색이 흰색 같아요");
+    // white chosen never shows the hint
+    expect(runColor("white", [250, 250, 250]).hint ?? null).toBeNull();
+  });
+});
 
 describe("Pipeline gates", () => {
   test("a ball over a calibrated table is locked and drawn", () => {

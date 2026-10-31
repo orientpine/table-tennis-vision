@@ -16,7 +16,7 @@ const params = new URLSearchParams({
   delegate: args.delegate || "GPU",
 });
 if (args.corners) params.set("corners", args.corners);
-for (const key of ["dumpPose", "dumpCands", "rawPose"]) if (args[key]) params.set(key, args[key]);
+for (const key of ["dumpPose", "dumpCands", "rawPose", "srcFps", "poseModel", "numPoses"]) if (args[key]) params.set(key, args[key]);
 
 const browser = await engine.launch(
   engine === chromium

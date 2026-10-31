@@ -15,6 +15,20 @@ const BODY_VIS = 0.6;
 const LEG_VIS = 0.5;
 const ZONE_M = 4;
 const WRIST_VIS = 0.5;
+const OFFSCREEN_S = 2;
+// Standing position: the same floor point MOVE counts from (median of the last MOVE_MEDIAN
+// two-ankle samples). Older than STAND_STALE_S (the feet went out of sight) it is drawn dimmed;
+// older than STAND_HIDE_S it is not shown.
+const STAND_STALE_S = 0.5;
+const STAND_HIDE_S = 3;
+
+// Where a floor point (table metres, x along the table from my end, y across) is relative to
+// the nearer end line: metres behind it (negative = beside the table), which end, and metres
+// left/right of the centre line.
+export function standPlace(f) {
+  const atMyEnd = f.x < TABLE_LENGTH / 2;
+  return { end: atMyEnd ? "near" : "far", behindM: atMyEnd ? -f.x : f.x - TABLE_LENGTH, sideM: f.y - TABLE_WIDTH / 2 };
+}
 
 export function plausiblePerson(lm, cal) {
   if (!lm || lm.length < 29) return false;
@@ -76,6 +90,7 @@ function newPlayer(side, label) {
     lastAnchor: null,
     footHist: [],
     moveAnchor: null,
+    stand: null,
     wristDeg: null,
     wristDegHist: [],
     wristKmh: null,
@@ -88,9 +103,9 @@ function newPlayer(side, label) {
 
 export class Players {
   constructor() {
-    this.near = newPlayer("near", "앞쪽(나)");
-    this.far = newPlayer("far", "건너편(상대)");
-    this.swapped = false;
+    // near / far are the table's two ends; app.js names them ("레드 · <name>" or "레드 사이드")
+    this.near = newPlayer("near", "블루 사이드");
+    this.far = newPlayer("far", "레드 사이드");
     this.cal = null;
   }
 
@@ -100,6 +115,7 @@ export class Players {
       p.lastAnchor = null;
       p.footHist = [];
       p.moveAnchor = null;
+      p.stand = null;
       p.wristDeg = null;
       p.wristDegHist = [];
       p.wristKmh = null;
@@ -110,9 +126,10 @@ export class Players {
     }
   }
 
+  // The players trade ends (자리 교체 or the rules): their own settings go with them; who is tracked
+  // at each end stays with that end.
   swap() {
-    this.swapped = !this.swapped;
-    for (const key of ["landmarks", "seenT", "scale", "lastAnchor", "footHist", "moveAnchor", "wristDeg", "wristDegHist", "wristHist", "lmHist", "hand", "moveM", "wristKmh", "shotWristKmh", "shotKmh"]) {
+    for (const key of ["hand", "moveM"]) {
       [this.near[key], this.far[key]] = [this.far[key], this.near[key]];
     }
   }
@@ -131,9 +148,16 @@ export class Players {
     let near = sorted[0];
     let far = sorted.length > 1 ? sorted[sorted.length - 1] : null;
     if (sorted.length === 1) {
-      // One person visible: keep them in whichever slot they were tracked in last. Those slots
-      // already reflect any swap, so the swap flip below must not be applied again.
       const lm = sorted[0];
+      // On a calibrated table a lone person standing clearly behind one end belongs to that
+      // end. Slot history alone put the far player in the near slot whenever only the near
+      // slot was still remembered (the far one cleared after 0.5 s unseen at a low pose rate).
+      if (cal && Math.abs(score(lm)) > cal.lengthPx * 0.3) {
+        return score(lm) < 0 ? [lm, null] : [null, lm];
+      }
+      // Near the middle (or no calibration): keep them in whichever slot they were tracked in
+      // last.
+
       const prevNear = this.near.landmarks && dist(anchor(this.near.landmarks), anchor(lm));
       const prevFar = this.far.landmarks && dist(anchor(this.far.landmarks), anchor(lm));
       if (prevNear != null || prevFar != null) {
@@ -141,11 +165,12 @@ export class Players {
       }
       if (cal && score(lm) > 0) [near, far] = [null, lm];
     }
-    return this.swapped ? [far, near] : [near, far];
+    return [near, far];
   }
 
   update(t, poses, cal) {
     this.cal = cal;
+    this.t = t;
     const [nearLm, farLm] = this.assign(poses, cal);
     this.updateOne(this.near, nearLm, t, cal);
     this.updateOne(this.far, farLm, t, cal);
@@ -191,8 +216,12 @@ export class Players {
     if (p.footHist.length && t - p.footHist[p.footHist.length - 1].t > 0.5) p.footHist = [];
     p.footHist.push({ x: f.x, y: f.y, t });
     if (p.footHist.length > MOVE_MEDIAN) p.footHist.shift();
-    if (p.footHist.length < MOVE_MEDIAN) return;
     const here = { x: median(p.footHist.map((h) => h.x)), y: median(p.footHist.map((h) => h.y)), t };
+    // The standing point shows from the first two-ankle sample: on a side view the pose model
+    // keeps both ankles of a player only a few frames in a row, so waiting for the full MOVE
+    // median would hide it most of the time (test_2 clip in WebKit: 2-3 samples per run).
+    p.stand = { x: here.x, y: here.y, t, cal: this.cal };
+    if (p.footHist.length < MOVE_MEDIAN) return;
     const a = p.moveAnchor;
     if (!a) {
       p.moveAnchor = here;
@@ -232,12 +261,23 @@ export class Players {
     if (shot.speedKmh != null) p.shotKmh = shot.speedKmh;
   }
 
+  standState(p) {
+    const s = p.stand;
+    if (!s || !this.cal || s.cal !== this.cal || !(this.t - s.t <= STAND_HIDE_S)) return null;
+    const img = apply(this.cal.floorToImage, s);
+    return { x: s.x, y: s.y, ...standPlace(s), img, stale: this.t - s.t > STAND_STALE_S };
+  }
+
   state() {
     const one = (p) => ({
       label: p.label,
       hand: p.hand,
       landmarks: p.landmarks,
+      // The pose model drops a player for a frame now and then (often the one at the frame edge
+      // in a side view); "화면 밖" only after OFFSCREEN_S without a detection.
+      offscreen: !p.landmarks && !(this.t - p.seenT <= OFFSCREEN_S),
       moveM: this.cal ? Math.round(p.moveM * 10) / 10 : null,
+      stand: this.standState(p),
       wristDeg: p.landmarks ? p.wristDeg : null,
       wristKmh: p.wristKmh,
       shotKmh: p.shotKmh,

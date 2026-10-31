@@ -112,6 +112,8 @@ export class RallyEngine {
       durationS: r.lastT - r.startT,
       shots: r.shots.length,
       shotList: r.shots.map((s) => ({ side: s.side, t: s.t, inferred: !!s.inferred })),
+      serveNet: r.serveNet || null,
+      serveSeen: r.serveSeen || null,
       maxSpeedKmh: r.maxSpeed,
       bounces: r.bounces.map((b) => ({ tx: b.tx, ty: b.ty, side: b.side, t: b.t })),
     });
@@ -198,7 +200,10 @@ export class RallyEngine {
     if (n < 5) return;
     const k = n - 3;
     const p = r.pts;
-    const thr = Math.max(2, this.vh * 0.004);
+    // The dip a bounce must show scales with the table's size in the image, not the frame's:
+    // a portrait frame is tall but its table is small (0.0045 x table length = frame height x
+    // 0.004 on the 1080p side views this was tuned on; a portrait phone's table gets half).
+    const thr = Math.max(2, this.cal ? this.cal.lengthPx * 0.0045 : this.vh * 0.004);
     const ymax = p[k].y;
     if (!(ymax >= p[k - 1].y && ymax > p[k + 1].y)) return;
     if (ymax - Math.min(p[k - 2].y, p[k - 1].y) < thr && ymax - p[k - 2].y < thr) return;
@@ -213,6 +218,19 @@ export class RallyEngine {
     b.side = b.tx == null ? (p[k].u < 0.5 ? "near" : "far") : b.tx < TABLE_LENGTH / 2 ? "near" : "far";
     r.bounces.push(b);
     this.onEvent({ type: "bounce", t: b.t, bounce: b });
+    const serve = r.shots[0];
+    if (serve && !r.serveDone && b.side !== serve.side && b.t > serve.t && this.cal) {
+      r.serveDone = true;
+      const flight = r.pts.filter((q) => q.t > serve.t && q.t < b.t && q.along != null);
+      r.serveNet = netKink(flight);
+      // How well the serve was seen over the server's own half, where its first bounce belongs:
+      // measured points there and the longest gap between them (from the hit on).
+      const own = flight.filter((q) => (serve.side === "near" ? q.along < TABLE_LENGTH / 2 : q.along > TABLE_LENGTH / 2));
+      let gap = own.length ? own[0].t - serve.t : b.t - serve.t;
+      for (let i = 1; i < own.length; i++) gap = Math.max(gap, own[i].t - own[i - 1].t);
+      const spanS = own.length > 1 ? own[own.length - 1].t - own[0].t : 0;
+      r.serveSeen = { pts: own.length, spanS: Math.round(spanS * 1000) / 1000, maxGapS: Math.round(gap * 1000) / 1000 };
+    }
     if (last && last.side !== b.side && !r.shots.some((s) => s.t > last.t && s.t < b.t) && !this.isServeBounce(last)) this.inferShot(last, b);
   }
 
@@ -263,6 +281,20 @@ export class RallyEngine {
       bounces: r.bounces,
     };
   }
+}
+
+// A serve that clips the net slows sharply or changes course there. Compare the along-table
+// speed of the serve's flight just before and just after the net line (+-0.6 m around it).
+// Returns { ratio } (after / before), or null when either side has too few measured points.
+export function netKink(pts) {
+  const net = TABLE_LENGTH / 2;
+  const before = pts.filter((p) => Math.abs(p.along - net) <= 0.6 && (p.along - net) * Math.sign(pts[pts.length - 1].along - pts[0].along) < 0);
+  const after = pts.filter((p) => Math.abs(p.along - net) <= 0.6 && (p.along - net) * Math.sign(pts[pts.length - 1].along - pts[0].along) >= 0);
+  if (before.length < 3 || after.length < 3) return null;
+  const v = (seg) => Math.abs((seg[seg.length - 1].along - seg[0].along) / (seg[seg.length - 1].t - seg[0].t || 1e-9));
+  const vb = v(before);
+  if (!(vb > 0)) return null;
+  return { ratio: Math.round((v(after) / vb) * 100) / 100 };
 }
 
 function labelOf(shot) {

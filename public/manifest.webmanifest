@@ -1,6 +1,6 @@
 {
-  "name": "핑퐁 비전",
-  "short_name": "핑퐁비전",
+  "name": "PINGPONG VISION",
+  "short_name": "PINGPONG VISION",
   "description": "폰 카메라로 탁구 랠리의 자세, 공 궤적, 샷 속도를 화면 위에 보여줘요. 영상은 폰 밖으로 나가지 않아요.",
   "lang": "ko",
   "start_url": "./",

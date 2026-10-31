@@ -18,7 +18,7 @@
 //   bun qa/point-eval.mjs --offline=<ball-offline json> --gt=data/videos/test_2 --corners='<json>' [--out=x.json]
 import { readFileSync, writeFileSync } from "node:fs";
 import { TABLE_LENGTH, apply, makeCalibration } from "../public/js/geom.js";
-import { judgePoint } from "../public/js/point.js";
+import { judgePoint, suspects } from "../public/js/point.js";
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split(/=(.*)/s).slice(0, 2)));
 const res = JSON.parse(readFileSync(args.offline, "utf8"));
@@ -47,7 +47,7 @@ const gt = runs
 
 const app = res.events
   .filter((e) => e.type === "rallyEnd" && e.why !== "stop")
-  .map((e) => ({ startS: e.t - e.durationS, endS: e.t, why: e.why, judged: judgePoint({ shots: e.shotList || [], bounces: e.bounces || [] }) }))
+  .map((e) => ({ startS: e.t - e.durationS, endS: e.t, why: e.why, judged: judgePoint({ shots: e.shotList || [], bounces: e.bounces || [] }), suspect: suspects({ shots: e.shotList || [], bounces: e.bounces || [], serveNet: e.serveNet || null, serveSeen: e.serveSeen || null }), serveNet: e.serveNet || null, serveSeen: e.serveSeen || null }))
   .filter((a) => a.judged);
 
 const overlap = (x, w) => Math.min(x.endS, w.endS) - Math.max(x.startS, w.startS);
@@ -59,7 +59,7 @@ const assigned = app.map((x) => {
 const rows = gt.map((g, i) => {
   const mine = app.filter((_, k) => assigned[k] && assigned[k].point === i);
   const first = mine[0] || null;
-  return { ...g, appEntries: mine.length, appWinner: first?.judged.winner ?? null, appReason: first?.judged.reason ?? null, appSure: !!first?.judged.sure, appSpan: first ? `${first.startS.toFixed(1)}-${first.endS.toFixed(1)}` : null, correct: !!first && first.judged.winner === g.winner };
+  return { ...g, appEntries: mine.length, appWinner: first?.judged.winner ?? null, appReason: first?.judged.reason ?? null, appSure: !!first?.judged.sure, faultAsk: !!first?.suspect.fault, serveSeen: first?.serveSeen ?? null, letAsk: !!first?.suspect.let, serveNetRatio: first?.serveNet?.ratio ?? null, appSpan: first ? `${first.startS.toFixed(1)}-${first.endS.toFixed(1)}` : null, correct: !!first && first.judged.winner === g.winner };
 });
 const inFragments = app.filter((_, k) => assigned[k] && assigned[k].point === null).length;
 const outside = app.filter((_, k) => !assigned[k]).length;
@@ -74,6 +74,8 @@ const summary = {
   extra: extraDup,
   sureCorrect: rows.filter((r) => r.appSure && r.correct).length,
   sureWrong: rows.filter((r) => r.appSure && r.appEntries && !r.correct).length,
+  faultAsked: rows.filter((r) => r.faultAsk).length,
+  letAsked: rows.filter((r) => r.letAsk).length,
   unverifiedInFragments: inFragments,
   outsideGt: outside,
   fragments: windows.length - gt.length,

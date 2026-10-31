@@ -2,7 +2,7 @@
 // record and a highlight clip (that rally only, HUD drawn in) with a secret upload key; each saved
 // rally gets an unguessable share link. There is no listing endpoint: a rally can be reached only
 // through its own link, and deleted only with the upload key.
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -64,6 +64,29 @@ export function redeemSetupToken({ tokenFile, token, now = Date.now() }) {
   return !!hit && hit.exp > now;
 }
 
+// PC save by tournament PIN. The tournament app stays the only judge of the PIN: POST /api/pin-save
+// sends it to /api/pin/verify under the caller's own address, so its 5-tries, 1-minute lockout counts
+// this path too. That address is only what this server saw: from a proxy on this machine (tailscale
+// serve/Funnel, which replaces X-Forwarded-For with the real device) the last X-Forwarded-For hop,
+// from anyone else the peer itself. cf-connecting-ip passes through tailscale untouched: never used. A pass gives this browser its own token; the upload key itself never leaves the
+// server. A grant keeps sha256(token) and an HMAC of the PIN under the upload key, and counts only
+// while that HMAC matches the PIN in the tournament's own data file: a changed PIN cuts it.
+const MAX_GRANTS = 64;
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+function clientAddress(req, peer) {
+  if (!LOOPBACK.has(peer)) return peer;
+  return req.headers.get("x-forwarded-for")?.split(",").at(-1).trim() || peer;
+}
+
+function storedTournamentPin(file) {
+  try {
+    return JSON.parse(readFileSync(file, "utf8")).pin || null;
+  } catch {
+    return null;
+  }
+}
+
 function json(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 }
@@ -81,6 +104,9 @@ export function createSaveStore({
   dir = process.env.PPV_SAVE_DIR || join(homedir(), "pingpong-vision-saves"),
   keyFile = process.env.PPV_KEY_FILE || join(homedir(), ".config/pingpong-vision/upload-key"),
   setupFile = process.env.PPV_SETUP_FILE || join(homedir(), ".config/pingpong-vision/setup-tokens.json"),
+  grantFile = join(dirname(keyFile), "save-grants.json"),
+  tournamentUrl = process.env.PPV_TOURNAMENT_URL || "",
+  tournamentData = process.env.PPV_TOURNAMENT_DATA || join(homedir(), "Documents/pingpong-tournament/data/tournament.json"),
   maxVideoBytes = 200 * 1024 * 1024,
   maxRecordBytes = 1024 * 1024,
   maxItems = 300,
@@ -88,14 +114,26 @@ export function createSaveStore({
   maxPerHour = 60,
   now = () => Date.now(),
 } = {}) {
+  // No default scoreboard address: a test PIN once went to the live tournament app and locked it
+  // (2026-10-30). Without PPV_TOURNAMENT_URL, PIN save is off (503) and nothing is sent anywhere.
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700);
   const key = Buffer.from(loadOrCreateKey(keyFile));
   const recent = [];
 
+  const pinTag = (pin) => createHmac("sha256", key).update(pin).digest("hex");
+  const granted = (token) => {
+    if (!ID_RE.test(token)) return false;
+    const pin = storedTournamentPin(tournamentData);
+    if (!pin) return false;
+    const h = sha(token);
+    const tag = pinTag(pin);
+    return readTokens(grantFile).some((g) => g.h === h && g.tag === tag);
+  };
   const authorized = (req) => {
-    const got = Buffer.from(req.headers.get("x-ppv-key") || "");
-    return got.length === key.length && timingSafeEqual(got, key);
+    const header = req.headers.get("x-ppv-key") || "";
+    const got = Buffer.from(header);
+    return (got.length === key.length && timingSafeEqual(got, key)) || granted(header);
   };
   const items = () => readdirSync(dir).filter((n) => ID_RE.test(n));
   const usage = () => {
@@ -108,6 +146,34 @@ export function createSaveStore({
     const f = existsSync(d) ? readdirSync(d).find((n) => n.startsWith("video.")) : null;
     return f ? join(d, f) : null;
   };
+
+  async function saveByPin(req, peer) {
+    if (Number(req.headers.get("content-length") || 0) > 1024) return json(413, { error: "too large" });
+    const body = await req.json().catch(() => null);
+    const pin = String(body?.pin ?? "");
+    if (!tournamentUrl) return json(503, { error: "PIN save is off: PPV_TOURNAMENT_URL is not set" });
+    const client = clientAddress(req, peer);
+    let res;
+    try {
+      res = await fetch(new URL("/api/pin/verify", tournamentUrl), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(client ? { "x-forwarded-for": client } : {}) },
+        body: JSON.stringify({ pin }),
+      });
+    } catch {
+      return json(503, { error: "tournament app unreachable" });
+    }
+    if (res.status === 403 || res.status === 429) {
+      const { error } = await res.json().catch(() => ({}));
+      return json(401, { error, code: res.status === 429 ? "locked" : "pin" });
+    }
+    if (!res.ok) return json(503, { error: "tournament app unreachable" });
+    const token = randomBytes(32).toString("base64url");
+    const tag = pinTag(pin);
+    const live = readTokens(grantFile).filter((g) => g.tag === tag).slice(1 - MAX_GRANTS);
+    writeTokens(grantFile, [...live, { h: sha(token), tag }]);
+    return new Response(JSON.stringify({ token }), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  }
 
   async function upload(req) {
     if (!authorized(req)) return json(401, { error: "upload key" });
@@ -164,11 +230,11 @@ export function createSaveStore({
     const r = JSON.parse(readFileSync(join(d, "record.json"), "utf8"));
     const stat = (k, v) => `<div class="s"><span>${k}</span><b>${escapeHtml(v)}</b></div>`;
     const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>핑퐁 비전 랠리</title><link rel="preload" href="../../fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
+<meta name="robots" content="noindex"><title>PINGPONG VISION · 랠리</title><link rel="preload" href="../../fonts/Galmuri11.woff2" as="font" type="font/woff2" crossorigin>
 <style>@font-face{font-family:G;src:url(../../fonts/Galmuri11.woff2) format("woff2")}body{margin:0;background:#0b1634;color:#f2f6ff;font:16px G,monospace}
 main{max-width:960px;margin:0 auto;padding:16px}video{width:100%;background:#000;border:3px solid #000;box-shadow:4px 4px 0 #000}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.s{background:#13224d;border:2px solid #000;box-shadow:3px 3px 0 #000;padding:8px 12px}
-.s span{display:block;color:#a3afcb;font-size:11px}.s b{font-size:22px}h1{font-size:22px;margin:4px 0 12px}p{color:#a3afcb;font-size:11px}</style></head>
+@media(max-width:600px){video{width:calc(100% + 32px);margin-inline:-16px;border-inline:0;box-shadow:none}}.s span{display:block;color:#a3afcb;font-size:11px}.s b{font-size:22px}h1{font-size:22px;margin:4px 0 12px}p{color:#a3afcb;font-size:11px}</style></head>
 <body><main><h1>RALLY ${escapeHtml(new Date(r.startedAt || r.savedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }))}</h1>
 <video src="${id}/video" controls playsinline preload="metadata"></video>
 <div class="row">${stat("RALLY TIME", fmtDuration(r.durationMs))}${stat("SHOTS", r.shots ?? "--")}${stat("MAX SPEED", r.maxSpeedKmh == null ? "--" : `~${r.maxSpeedKmh} km/h`)}${stat("BOUNCES", (r.bounces || []).length)}</div>
@@ -192,14 +258,16 @@ main{max-width:960px;margin:0 auto;padding:16px}video{width:100%;background:#000
     return new Response(file, { headers: { "content-type": type, "accept-ranges": "bytes", "cache-control": "no-store" } });
   }
 
-  // path is the request path without the /vision mount. Returns null when the path is not ours.
-  async function handle(req, path) {
+  // path is the request path without the /vision mount; peer is the socket address that sent req.
+  // Returns null when the path is not ours.
+  async function handle(req, path, peer) {
     if (path === "/api/key-check" && req.method === "GET") return authorized(req) ? new Response(null, { status: 204 }) : json(401, { error: "upload key" });
     if (path === "/api/setup" && req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       if (!redeemSetupToken({ tokenFile: setupFile, token: body && body.token, now: now() })) return json(404, { error: "setup link used or expired" });
       return new Response(JSON.stringify({ key: key.toString() }), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
     }
+    if (path === "/api/pin-save" && req.method === "POST") return saveByPin(req, peer);
     if (path === "/api/rallies" && req.method === "POST") return upload(req);
     let m = /^\/api\/rallies\/([^/]+)$/.exec(path);
     if (m && req.method === "DELETE") return ID_RE.test(m[1]) ? remove(req, m[1]) : json(404, { error: "not found" });

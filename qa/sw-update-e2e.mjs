@@ -30,7 +30,7 @@ const builds = { old: { root: args.old, port: PROXY_PORT + 1 }, new: { root: arg
 const env = (name) => ({
   ...process.env,
   PORT: String(builds[name].port),
-  PPV_SAVE_DIR: join(tmp, `${name}-saves`),
+  PPV_SAVE_DIR: join(tmp, PPV_TOURNAMENT_URL: "http://127.0.0.1:9", `${name}-saves`),
   PPV_KEY_FILE: join(tmp, "upload-key"),
   PPV_SETUP_FILE: join(tmp, "setup-tokens.json"),
 });
@@ -86,6 +86,7 @@ const noticeInView = () => {
 const waitNoticeInView = (page) => page.waitForFunction(`(${noticeInView})()`, null, { timeout: 3000 }).catch(() => {});
 const browser = await webkit.launch(process.env.PPV_WEBKIT ? { executablePath: process.env.PPV_WEBKIT } : {});
 const ctx = await browser.newContext({ ...devices["iPhone 15"], ignoreHTTPSErrors: true, serviceWorkers: "allow" });
+await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
 const consoleLines = [];
 ctx.on("page", (p) => p.on("console", (m) => consoleLines.push(`${m.type()}: ${m.text()}`)));
 const report = { base, marker, steps: {} };

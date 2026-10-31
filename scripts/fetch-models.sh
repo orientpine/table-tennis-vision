@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+command -v sha256sum >/dev/null || sha256sum() { shasum -a 256 "$@"; }
 mkdir -p "$(dirname "$0")/../public/models"
 cd "$(dirname "$0")/../public/models"
 

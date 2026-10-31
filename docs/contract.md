@@ -21,16 +21,19 @@ handlers = {
   onSwapPlayers(), onSetHand(side /*'near'|'far'*/, hand /*'R'|'L'*/),
   onOpenHistory(), onCloseHistory(), onClearHistory(),
   onSetLayout(layout /* 'auto'|'phone'|'tv' */),
+  onSetBallColor(color /* 'white'|'orange' */),   // settings "공 색"; saved as ppv.ballColor, default white
 }
 ```
 Calibration tap order (guide text must say this): 1-2 = the two corners of MY end line (앞쪽/나), 3-4 = the two corners of the OPPONENT end line. Points draggable before 확인; 다시 to restart. While `mode === 'calibrating'` and `source === 'file'` the UI keeps its `<video>` paused (WebKit can resume a paused element by itself when a seek queued before the pause completes), so the taps always land on a still frame.
 
 Layout fit (`data-fit` on `.app`, chosen by ui.js from `layout` and the viewport):
-- `stack` - phone in portrait, whatever the video's aspect ratio: glance row / status strip / issue banner / stage / players + court / control bar / calibration bar are grid rows inside the visible viewport (`100dvh`, safe-area insets). No panel ever covers the picture; the video is `object-fit: contain` inside the leftover row.
+- `stack` - phone in portrait, whatever the video's aspect ratio: status strip / glance row / live chips + fit switch / issue banner / open window / fold chip / players + court / control bar / calibration bar are grid rows (`100dvh`, safe-area insets) floating over the full-screen picture (`z-index: -1`; cover for a tall stream unless 맞춤 is chosen). While calibrating the picture moves into the window row (`object-fit: contain`), so no panel covers it.
 - `overlay` - phone in landscape and `tv`: the stage fills the screen and the panels sit on its edges (landscape keeps the right-edge control column free of video).
 
 ## hud.js
-`drawHud(ctx, state, toScreen, {top, right})` draws on the overlay canvas (backing store = CSS px x devicePixelRatio, text at integer CSS px and at the pixel font's integer sizes `--fs-hud-label` / `--fs-hud-value`): skeletons (near = cyan, far = green), foot ellipse, name plate above the head, table polygon when calibrated, the locked-ball trail, the LOCK target (gold bracket corners on `state.ball.lock` plus a label box "LOCK <side>" / "~27 km/h" when `speedKmh` is known), shot label above the hitter ("포핸드 드라이브 ~27km"). The LOCK target is drawn from `state.ball.lock` ONLY: when it is null nothing LOCK-shaped is on screen; an unlocked `ball.current` is a 4 px white square. It returns `{ lock: rect|null, tags, fonts: "12,24", font: "Galmuri11" }`; ui.js mirrors that onto the canvas as `data-lock="1"|"0"`, `data-fonts`, `data-font` so QA can read what the last frame drew.
+`drawHud(ctx, state, toScreen, {top, right, avoid})` (`avoid` = panel rects over the picture in landscape/TV; a standing mark or its label under one is left out) draws on the overlay canvas (backing store = CSS px x devicePixelRatio, text at integer CSS px and at the pixel font's integer sizes `--fs-hud-label` / `--fs-hud-value`): skeletons (near = cyan, far = green), the standing point (a solid ring on the floor at `players[side].stand.img` with "끝선 뒤 1.2m" / "대 옆" under it, 40% opacity while `stale`; the dashed foot ellipse only for a player without a stand), name plate above the head, table polygon when calibrated, the locked-ball trail, the LOCK target (gold bracket corners on `state.ball.lock` plus a label box "LOCK <side>" / "~27 km/h" when `speedKmh` is known), shot label above the hitter ("포핸드 드라이브 ~27km"). The LOCK target is drawn from `state.ball.lock` ONLY: when it is null nothing LOCK-shaped is on screen; an unlocked `ball.current` is a 4 px white square. It returns `{ lock: rect|null, tags, stands, fonts: "12,24", font: "Galmuri11" }`; ui.js mirrors that onto the canvas as `data-lock="1"|"0"`, `data-fonts`, `data-font`, `data-stands="near:끝선 뒤 1.2m|far:panel~"` (`~` = stale, `panel` = feet under a panel, mark left out) so QA can read what the last frame drew.
+
+Court map (live): the table plus 1.2 m of floor behind each end and 0.3 m beside it, bounces as before, and one dot per player at `stand` in the player's colour (hollow ring on the edge when further away, 40% opacity while stale); the footer reads metres behind the end line next to 나 / 상대.
 
 ## State (produced by app.js each frame; all coords video px unless noted)
 ```js
@@ -43,6 +46,8 @@ Layout fit (`data-fit` on `.app`, chosen by ui.js from `layout` and the viewport
   perf: { fps: number, ms: number, poseMs: number, ballMs: number },
   video: { width, height },        // a portrait camera stream is 720x1280; a clip may be 1280x720
   calibration: null | { corners: [{x,y},{x,y},{x,y},{x,y}] },  // tap order
+  ballColor: 'white'|'orange',     // ball colour test in BallDetector (settings "공 색")
+  colorHint: string|null,          // orange chosen but a white ball keeps locking: "공 색이 흰색 같아요" (orange status chip)
   tracking: 'no-calibration'|'no-table'|'unstable'|'searching'|'locked',
   calibrationIssue: string|null,   // Korean sentence while tracking is 'no-table' or 'unstable', e.g. "탁구대가 안 보여요. 코트 보정으로 탁구대 네 모서리를 맞춰 주세요"
   rally: { active: bool, timeMs: number, shots: number, speedKmh: number|null, maxSpeedKmh: number|null },
@@ -54,11 +59,14 @@ Layout fit (`data-fit` on `.app`, chosen by ui.js from `layout` and the viewport
   bounces: [{ tx, ty, side: 'near'|'far', t }],   // current rally; table meters: tx 0..2.74 from MY end, ty 0..1.525
   lastShot: null | { side: 'near'|'far', stroke: '포핸드'|'백핸드', kind: '드라이브'|'스매시'|'로빙'|'푸시'|'서브', label: string, speedKmh: number|null, at: {x,y}, t },
   players: {
-    near: { label: '앞쪽(나)', hand: 'R'|'L', landmarks: null | [{x,y,v}] /* 33 MediaPipe */,
+    // near / far = the table's two ends; end = 0 blue / 1 red (fixed, the setting "카메라 앞쪽").
+    // label: '블루 · <player>' linked to a match (who stands at that end now), else '블루 사이드'
+    near: { label: '블루 사이드', end: 0|1, hand: 'R'|'L', landmarks: null | [{x,y,v}] /* 33 MediaPipe */,
             moveM: number|null,    // metres moved this session from both feet on the floor, table coordinates; null until calibrated -> "--"
             wristDeg: number|null, // wrist bend in degrees, 0 = straight forearm-to-hand; null = low confidence -> "--"
-            wristKmh: number|null, shotKmh: number|null },
-    far:  { label: '건너편(상대)', ... },
+            wristKmh: number|null, shotKmh: number|null,
+            stand: null | { x, y /* table metres, same floor point MOVE counts from */, end: 'near'|'far', behindM /* metres behind that end line, <0 beside the table */, sideM /* metres from the centre line */, img: {x,y} /* video px */, stale: bool /* feet unseen > 0.5 s; null after 3 s */ } },
+    far:  { label: '레드 사이드', end: 1|0, ... },
   },
   history: [{ id, startedAt /* epoch ms */, durationMs, shots, maxSpeedKmh, bounces: [{tx,ty,side}] }],
   showHistory: bool,

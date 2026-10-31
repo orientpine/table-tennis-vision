@@ -2,7 +2,8 @@
 # Builds the public tree from a commit of the private repo and leak-checks it.
 #   scripts/export-public.sh <rev> <empty dest dir>
 # Takes the committed files of <rev> (git archive, so nothing uncommitted or gitignored), drops
-# the private-only paths below, puts README.public.md in place of README.md, then runs
+# the private-only paths below, puts README.public.md / README.public.ko.md in place of README.md /
+# README.ko.md, then runs
 # scripts/scan-public.sh on the result. Exits non-zero if the scan finds anything.
 set -euo pipefail
 
@@ -21,6 +22,7 @@ PRIVATE_ONLY=(
 )
 ( cd "$DEST" && for p in "${PRIVATE_ONLY[@]}"; do rm -rf -- $p; done )
 mv "$DEST/README.public.md" "$DEST/README.md"
+mv "$DEST/README.public.ko.md" "$DEST/README.ko.md"
 
 echo "exported $(git -C "$ROOT" rev-parse --short=12 "$REV") -> $DEST ($(find "$DEST" -type f | wc -l) files)"
 bash "$ROOT/scripts/scan-public.sh" "$DEST"

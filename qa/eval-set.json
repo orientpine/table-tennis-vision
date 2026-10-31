@@ -1,0 +1,198 @@
+{
+ "note": "Public videos for qa/eval-all.mjs. Videos live in data/videos (gitignored, fetched from the URLs below; never commit them). corners = table top [my-end near, my-end far, other-end far, other-end near] in video px, read from 4x zoomed crops of one frame.",
+ "videos": [
+  {
+   "name": "test_1",
+   "video": "data/videos/test_1.mp4",
+   "markup": "data/videos/test_1",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_1.mp4",
+   "corners": [
+    {
+     "x": 283,
+     "y": 656
+    },
+    {
+     "x": 514,
+     "y": 547
+    },
+    {
+     "x": 1281,
+     "y": 574
+    },
+    {
+     "x": 1382,
+     "y": 700
+    }
+   ]
+  },
+  {
+   "name": "test_2",
+   "video": "data/videos/test_2.mp4",
+   "markup": "data/videos/test_2",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_2.mp4",
+   "corners": [
+    {
+     "x": 355,
+     "y": 634
+    },
+    {
+     "x": 557,
+     "y": 519
+    },
+    {
+     "x": 1339,
+     "y": 535
+    },
+    {
+     "x": 1486,
+     "y": 659
+    }
+   ]
+  },
+  {
+   "name": "test_2_oldcorners",
+   "video": "data/videos/test_2.mp4",
+   "markup": "data/videos/test_2",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_2.mp4",
+   "corners": [
+    {
+     "x": 356,
+     "y": 634
+    },
+    {
+     "x": 482,
+     "y": 520
+    },
+    {
+     "x": 1370,
+     "y": 532
+    },
+    {
+     "x": 1484,
+     "y": 660
+    }
+   ],
+   "note": "the corners lanes 1-2 measured with (far end off by up to 75 px); kept to compare with REPORT/REPORT-2"
+  },
+  {
+   "name": "test_3",
+   "video": "data/videos/test_3.mp4",
+   "markup": "data/videos/test_3",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_3.mp4",
+   "corners": [
+    {
+     "x": 355,
+     "y": 636
+    },
+    {
+     "x": 555,
+     "y": 518
+    },
+    {
+     "x": 1340,
+     "y": 536
+    },
+    {
+     "x": 1486,
+     "y": 661
+    }
+   ]
+  },
+  {
+   "name": "test_4",
+   "video": "data/videos/test_4.mp4",
+   "markup": "data/videos/test_4",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_4.mp4",
+   "corners": [
+    {
+     "x": 350,
+     "y": 746
+    },
+    {
+     "x": 515,
+     "y": 630
+    },
+    {
+     "x": 1279,
+     "y": 631
+    },
+    {
+     "x": 1442,
+     "y": 742
+    }
+   ]
+  },
+  {
+   "name": "test_5",
+   "video": "data/videos/test_5.mp4",
+   "markup": "data/videos/test_5",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_5.mp4",
+   "corners": [
+    {
+     "x": 369,
+     "y": 741
+    },
+    {
+     "x": 535,
+     "y": 624
+    },
+    {
+     "x": 1299,
+     "y": 624
+    },
+    {
+     "x": 1462,
+     "y": 736
+    }
+   ]
+  },
+  {
+   "name": "test_6",
+   "video": "data/videos/test_6.mp4",
+   "markup": "data/videos/test_6",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_6.mp4",
+   "corners": [
+    {
+     "x": 455,
+     "y": 725
+    },
+    {
+     "x": 621,
+     "y": 619
+    },
+    {
+     "x": 1381,
+     "y": 639
+    },
+    {
+     "x": 1542,
+     "y": 756
+    }
+   ]
+  },
+  {
+   "name": "test_7",
+   "video": "data/videos/test_7.mp4",
+   "markup": "data/videos/test_7",
+   "url": "https://lab.osai.ai/datasets/openttgames/data/test_7.mp4",
+   "corners": [
+    {
+     "x": 401,
+     "y": 652
+    },
+    {
+     "x": 540,
+     "y": 469
+    },
+    {
+     "x": 1292,
+     "y": 462
+    },
+    {
+     "x": 1450,
+     "y": 632
+    }
+   ]
+  }
+ ]
+}

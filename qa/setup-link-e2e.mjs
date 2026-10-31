@@ -18,6 +18,7 @@ const link = `${base}#setup=${token}`;
 const browser = await webkit.launch(process.env.PPV_WEBKIT ? { executablePath: process.env.PPV_WEBKIT } : {});
 const open = async (name) => {
   const ctx = await browser.newContext({ ...devices["iPhone 15"] });
+  await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
   const page = await ctx.newPage();
   const urls = [];
   page.on("request", (r) => urls.push({ method: r.method(), url: r.url(), body: r.postData() || "" }));

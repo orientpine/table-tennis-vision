@@ -62,7 +62,20 @@ ONNX Runtime Web의 WebGPU는 아직 iOS Safari를 지원 목록에 올리지 �
 
 원본 측정 JSON과 확인 캡처(키포인트가 선수 위에 찍힌 그림)는 공개 저장소에 넣지 않았다. 폰에서 `/vision/bench.html`을 열면 같은 표를 다시 만든다.
 
-주의: bench 장면(1280×720 한 장)에서 MediaPipe는 오른쪽 선수만 잡았다. 실제 영상 전체에서는 두 선수 모두 잡힌 프레임이 73.8%(Chromium)·45.1%(WebKit)다(정확도 측정 표). 아이폰 실측은 이 PC로 할 수 없어 모바일 기기에서 `/vision/bench.html`을 열어 받아야 한다.
+주의: bench 장면(1280×720 한 장)에서 MediaPipe는 오른쪽 선수만 잡았다. 실제 영상 전체에서는 두 선수 모두 잡힌 프레임이 73.8%(Chromium)·45.1%(WebKit)다(정확도 측정 표).
+
+### 실측 (오너 아이폰, iOS 18.7 사파리, 2026-10-29) — `/vision/bench.html`
+
+| 모델 | 실행 방식 | 평균 | p90 | fps |
+|---|---|---:|---:|---:|
+| MediaPipe Pose Lite (2명) | GPU | 27.5 ms | 37 ms | 36.4 |
+| MediaPipe Pose Full (2명) | GPU 실패 → CPU | 64 ms | — | 15.6 |
+| RTMPose-s ×2 | WASM | 실패: "both async and sync fetching of the wasm failed" | — | — |
+| RTMPose | WebGL | 캡처 시점에 Loading | — | — |
+
+- Full이 CPU로 떨어지는 건 `public/js/pose.js`의 되돌림 경로다: GPU 델리게이트로 모델을 만들다 실패하면 CPU로 다시 만든다. 아이폰에서 Full의 GPU 그래프를 못 만든다는 뜻이고, CPU 15.6 fps는 실시간이 안 된다. 그래서 **Lite를 유지**한다.
+- RTMPose WASM 실패는 서버 탓이 아니다: 공개 주소에서 `vendor/ort/ort-wasm-simd-threaded.jsep.wasm`(29.5 MB)·`...threaded.wasm`(14.8 MB)이 모두 200 `application/wasm`으로 나가고, CSP에 `script-src 'self' 'wasm-unsafe-eval'`와 `worker-src 'self' blob:`이 있다. 남은 설명은 아이폰 사파리가 29.5 MB JSEP 빌드를 받아 컴파일하지 못하는 것(메모리)이며, 기기에서 확인하지는 못했다.
+- 앱이 실제로 내는 fps(공+자세 동시)는 bench가 아니라 사용 중 화면의 fps 표시로 받는다.
 
 판단: 사파리 엔진에서 GPU로 도는 MediaPipe가 RTMPose(WASM, 사람 검출기 별도 필요)보다 5배 이상 빠르다. 공 추적(1프레임 약 1 ms)과 같이 돌려도 30 fps 여유가 있어 MediaPipe Lite를 쓴다. RTMPose는 정확도(COCO AP 68~72)는 높지만 웹에서 GPU로 못 돌아 지금은 폰 실시간에 불리하다.
 

@@ -16,7 +16,7 @@ const [vw, vh] = probe.stdout.trim().split(",").map(Number);
 if (!vw || !vh) throw new Error(`ffprobe failed for ${video}: ${probe.stderr}`);
 
 const events = [];
-const pipe = new Pipeline({ onEvent: (e) => events.push(e.type) });
+const pipe = new Pipeline({ ballColor: args.color || "white", onEvent: (e) => events.push(e.type) });
 pipe.setVideoSize(vw, vh);
 pipe.setCalibration(corners);
 const { pw, ph } = pipe;

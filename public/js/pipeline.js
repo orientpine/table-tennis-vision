@@ -35,12 +35,23 @@ export function tableUniformity(rgba, pw, ph, cal, k) {
 }
 
 const TABLE_MIN_UNIFORM = 0.4;
+const END_ON_CUBIC = 1.3;
 const TABLE_CHECK_EVERY = 15;
 const SHAKE_MAX_CANDS = 120;
 const SHAKE_MAX_CHANGED = 0.04;
 const SHAKE_CALM_FRAMES = 10;
 export const ISSUE_NO_TABLE = "탁구대가 안 보여요. 코트 보정으로 탁구대 네 모서리를 맞춰 주세요";
 export const ISSUE_SHAKY = "폰이 흔들려요. 폰을 고정해 주세요";
+export const HINT_WHITE_BALL = "공 색이 흰색 같아요";
+// Orange mode keeps a white-ball tracker running beside it. A white lock on a neutral blob (red
+// minus blue under WHITE_WARM_MAX) is a white ball; when such locks are at least WHITE_HINT_SHARE
+// of the frames of the last WHITE_HINT_S (a share, so a phone at 16 fps and a file at 60 fps
+// behave alike) and more than 3x the orange locks, the setting is probably wrong.
+const WHITE_WARM_MAX = 25;
+const WHITE_HINT_S = 4;
+const WHITE_HINT_MIN_S = 2;
+const WHITE_HINT_SHARE = 0.15;
+const WHITE_HINT_HOLD_S = 5;
 
 function makeCanvas(w, h) {
   if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
@@ -51,8 +62,11 @@ function makeCanvas(w, h) {
 }
 
 export class Pipeline {
-  constructor({ pose = null, procWidth = 640, ballColor = "white", poseEvery = 1, onEvent = () => {} } = {}) {
+  constructor({ pose = null, procWidth = 640, ballColor = "white", poseEvery = 1, onEvent = () => {}, endOnCubic = false } = {}) {
     this.pose = pose;
+    // Off by default: on the club clip it found 7 of 64 balls but also showed a ball on 3 frames
+    // where there was none or it sat elsewhere. The owner can turn it on in the settings.
+    this.endOnCubic = endOnCubic;
     this.procWidth = procWidth;
     this.ballColor = ballColor;
     this.poseEvery = poseEvery;
@@ -85,12 +99,94 @@ export class Pipeline {
     this.detector = new BallDetector({ width: this.pw, height: this.ph, color: this.ballColor });
     const initGate = this.pw * 0.12;
     this.tracker = new BallTracker({ gate: initGate * 0.35, initGate, minSpeed: this.pw * 0.1 });
+    this.tracker.overTable = this.overTableRange();
+    this.tracker.lockCubic = this.cubicFor();
+    this.makeWhiteProbe();
     this.rally = new RallyEngine({ calibration: this.cal, videoWidth: vw, videoHeight: vh, onEvent: (e) => this.handle(e) });
+  }
+
+  // A camera low behind one end looks along the table: its long sides come out shorter in the
+  // image than its end lines (club clip 0.7; side views 4-7). The ball then flies towards or
+  // away from the lens, bent by perspective and blurred, so such views may also lock on an
+  // 8-point cubic with 1.5x the tolerance (cubicResidual in ball.js). Side views keep the
+  // parabola only: there the cubic cost test_2 precision 94.8 -> 91.7.
+  cubicFor() {
+    return this.endOnCubic && this.endOnView() ? END_ON_CUBIC : 0;
+  }
+
+  setEndOnCubic(on) {
+    this.endOnCubic = !!on;
+    if (this.tracker) this.tracker.lockCubic = this.cubicFor();
+  }
+
+  // White or orange ball (BallDetector colour test). The old frames were judged with the other
+  // colour, so the detector history and any track are dropped.
+  setBallColor(color) {
+    this.ballColor = color;
+    if (this.detector) {
+      this.detector.color = color;
+      this.detector.resetHistory();
+    }
+    this.makeWhiteProbe();
+    this.dropBall();
+  }
+
+  makeWhiteProbe() {
+    this.colorLog = [];
+    this.hintUntil = -Infinity;
+    this.whiteProbe = null;
+    if (this.ballColor !== "orange" || !this.pw) return;
+    const initGate = this.pw * 0.12;
+    this.whiteProbe = {
+      detector: new BallDetector({ width: this.pw, height: this.ph, color: "white" }),
+      tracker: new BallTracker({ gate: initGate * 0.35, initGate, minSpeed: this.pw * 0.1 }),
+    };
+  }
+
+  // one frame of the white probe: {white: neutral white lock, orange: orange lock}
+  probeColor(rgba, t, exclude, hit) {
+    const p = this.whiteProbe;
+    const cands = p.detector.detect(rgba, this.roi(), exclude);
+    const wh = p.tracker.update(cands.length > this.shake.maxCands ? [] : cands, t);
+    let whiteLock = false;
+    if (wh && wh.locked && !wh.predicted) {
+      let best = null;
+      for (const c of cands) if (!best || Math.hypot(c.x - wh.x, c.y - wh.y) < Math.hypot(best.x - wh.x, best.y - wh.y)) best = c;
+      whiteLock = !!best && Math.hypot(best.x - wh.x, best.y - wh.y) < 4 && best.warm < WHITE_WARM_MAX;
+    }
+    this.colorLog.push({ t, white: whiteLock, orange: !!(hit && hit.locked && !hit.predicted) });
+    while (this.colorLog.length && t - this.colorLog[0].t > WHITE_HINT_S) this.colorLog.shift();
+  }
+
+  colorHint() {
+    if (!this.whiteProbe || !this.colorLog.length) return null;
+    let w = 0, o = 0;
+    for (const e of this.colorLog) { if (e.white) w++; if (e.orange) o++; }
+    const now = this.colorLog[this.colorLog.length - 1].t;
+    const span = now - this.colorLog[0].t;
+    // once shown it stays WHITE_HINT_HOLD_S, so the chip does not blink with every missed lock
+    if (span >= WHITE_HINT_MIN_S && w >= WHITE_HINT_SHARE * this.colorLog.length && w > 3 * o) this.hintUntil = now + WHITE_HINT_HOLD_S;
+    return now < (this.hintUntil ?? -Infinity) ? HINT_WHITE_BALL : null;
+  }
+
+  endOnView() {
+    if (!this.cal) return false;
+    const q = this.cal.quad;
+    const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    return (d(q[1], q[2]) + d(q[3], q[0])) / (d(q[0], q[1]) + d(q[2], q[3])) < 2;
+  }
+
+  overTableRange() {
+    return this.cal && this.k ? { x0: this.cal.bbox.x0 / this.k, x1: this.cal.bbox.x1 / this.k } : null;
   }
 
   setCalibration(corners) {
     this.cal = corners ? makeCalibration(corners) : null;
     if (this.rally) this.rally.setCalibration(this.cal);
+    if (this.tracker) {
+      this.tracker.overTable = this.overTableRange();
+      this.tracker.lockCubic = this.cubicFor();
+    }
     this.tableChecks = [];
     this.dropBall();
     return this.cal;
@@ -133,6 +229,7 @@ export class Pipeline {
     }
     this.ctx.drawImage(source, 0, 0, this.pw, this.ph);
     const img = this.ctx.getImageData(0, 0, this.pw, this.ph);
+    this.lastRgba = img.data;   // read-only for app.js guards (repeat frames, light); not used by the analysis
     return this.processPixels(img.data, t, { source, t0 });
   }
 
@@ -160,6 +257,7 @@ export class Pipeline {
         cands = [];
       }
       hit = this.tracker.update(cands, t);
+      if (this.whiteProbe) this.probeColor(rgba, t, exclude || this.bodyBoxes(), hit);
       this.tracking = this.calmFrames < this.shake.calmFrames ? "unstable" : hit && hit.locked ? "locked" : "searching";
     } else {
       if (this.detector.frames) this.detector.resetHistory();
@@ -224,6 +322,7 @@ export class Pipeline {
       players: this.players.state(),
       tracking: this.tracking,
       calibrationIssue: this.tracking === "no-table" ? ISSUE_NO_TABLE : this.tracking === "unstable" ? ISSUE_SHAKY : null,
+      colorHint: this.colorHint(),
       perf: this.perf,
     };
   }

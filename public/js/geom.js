@@ -123,3 +123,11 @@ function distToSegment(p, a, b) {
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
+
+// The picture's box inside a stage. Contain shows all of it; cover fills the stage and the box runs
+// past the stage edges. Either way one scale and one offset map video px to stage px.
+export function fitBox(stageW, stageH, vidW, vidH, cover = false) {
+  const s = (cover ? Math.max : Math.min)(stageW / vidW, stageH / vidH);
+  const w = vidW * s, h = vidH * s;
+  return { x: (stageW - w) / 2, y: (stageH - h) / 2, w, h, scale: s };
+}

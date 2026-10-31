@@ -17,7 +17,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob: mediastream:",
-  "connect-src 'self'",
+  "connect-src 'self' blob:",
   "worker-src 'self' blob:",
   "font-src 'self'",
   "object-src 'none'",
@@ -71,15 +71,34 @@ function resolve(pathname) {
 const saves = createSaveStore();
 console.log(`rally saves in ${saves.dir} (upload key file ${saves.keyFile})`);
 
+// at most 30 lines a minute from all phones together, so a stuck page cannot flood the journal
+const stableSeen = [];
+async function stableLog(req) {
+  const now = Date.now();
+  while (stableSeen.length && now - stableSeen[0] > 60000) stableSeen.shift();
+  if (stableSeen.length >= 30) return new Response(null, { status: 429 });
+  let b;
+  try { b = JSON.parse((await req.text()).slice(0, 2000)); } catch { return new Response(null, { status: 400 }); }
+  const ACTIONS = ["compact", "full", "stay", "dismiss"];
+  if (!b || !ACTIONS.includes(b.action)) return new Response(null, { status: 400 });
+  const num = (v) => (Number.isFinite(v) ? Math.round(Math.max(-1, Math.min(10000, v))) : null);
+  stableSeen.push(now);
+  console.log(`stable-mode ${b.action} fps=${num(b.fps)} repeat=${num(b.repeatPct)}% base=${num(b.basePct)}% bad=${num(b.badWindows)} phoneAt=${new Date(Number.isFinite(b.at) && Math.abs(b.at - now) < 864e5 ? b.at : now).toISOString()} serverAt=${new Date(now).toISOString()}`);
+  return new Response(null, { status: 204 });
+}
+
 const server = Bun.serve({
   port: PORT,
   hostname: "127.0.0.1",
   maxRequestBodySize: 210 * 1024 * 1024,
-  async fetch(req) {
+  async fetch(req, srv) {
     const url = new URL(req.url);
     if (url.pathname === "/healthz") return new Response("ok\n");
+    // 판정 안정 모드 switches from a camera phone: numbers only, one journal line each, never stored with
+    // the tournament (lead, 2026-10-31: so we can see why a real phone switched)
+    if (url.pathname === "/vision/api/stable-log" && req.method === "POST") return stableLog(req);
     const savePath = url.pathname.startsWith("/vision/") ? url.pathname.slice("/vision".length) : url.pathname;
-    const saved = await saves.handle(req, savePath);
+    const saved = await saves.handle(req, savePath, srv.requestIP(req)?.address);
     if (saved) {
       saved.headers.set("content-security-policy", CSP);
       saved.headers.set("referrer-policy", "no-referrer");

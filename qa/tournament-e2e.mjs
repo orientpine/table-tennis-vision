@@ -24,7 +24,7 @@ const procs = [
   spawn("bun", [join(args.tournament, "server.js")], { cwd: args.tournament, env: { ...process.env, PORT: String(ports.tour), DATA_DIR: join(tmp, "tour") }, stdio: ["ignore", "ignore", "inherit"] }),
   spawn("bun", [join(args.vision, "server.js")], {
     cwd: args.vision,
-    env: { ...process.env, PORT: String(ports.vision), PPV_SAVE_DIR: join(tmp, "saves"), PPV_KEY_FILE: join(tmp, "upload-key"), PPV_SETUP_FILE: join(tmp, "setup.json") },
+    env: { ...process.env, PORT: String(ports.vision), PPV_SAVE_DIR: join(tmp, "saves"), PPV_TOURNAMENT_URL: `http://127.0.0.1:${ports.tour}`, PPV_TOURNAMENT_DATA: join(join(tmp, "tour"), "tournament.json"), PPV_KEY_FILE: join(tmp, "upload-key"), PPV_SETUP_FILE: join(tmp, "setup.json") },
     stdio: ["ignore", "ignore", "inherit"],
   }),
 ];
@@ -116,10 +116,19 @@ try {
     if (r.status !== 200) throw new Error(`create ${r.status} ${JSON.stringify(r.body)}`);
     pin = r.body.pin;
     matchId = r.body.state.derived.matches.find((m) => m.status === "ready").id;
-    return { matchId };
+    // Deciding game at 4:4 (games 1:1), so whoever wins the next point reaches 5 and the
+    // players must change ends (ITTF 2.15.3): the vision app should say so and flip colours.
+    const seed = [...Array(11).fill(0), ...Array(11).fill(1), 0, 1, 0, 1, 0, 1, 0, 1];
+    for (let i = 0; i < seed.length; i++) {
+      const p = await api("/api/action", { type: "point", matchId, side: seed[i], seq: i }, pin);
+      if (p.status !== 200) throw new Error(`seed point ${i}: ${p.status}`);
+    }
+    return { matchId, seeded: "games 1:1, deciding game 4:4" };
   }, () => null);
 
   const vctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+
+  await vctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
   viewer = await vctx.newPage();
   await step("viewer-open", async () => {
     await viewer.goto(origin + "/", { waitUntil: "networkidle" });
@@ -127,8 +136,25 @@ try {
   }, () => viewer);
 
   const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, permissions: ["camera"] });
+
+  await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
+  // Record what the app speaks (the headless browser has no audio out).
+  await ctx.addInitScript(() => {
+    window.__said = [];
+    const synth = window.speechSynthesis;
+    if (synth) {
+      const speak = synth.speak.bind(synth);
+      synth.speak = (u) => {
+        window.__said.push(u.text);
+        try { speak(u); } catch {}
+      };
+    }
+  });
   page = await ctx.newPage();
-  await page.goto(origin + "/vision/", { waitUntil: "networkidle" });
+  // The camera screen rewrites the address bar to the one address while loading (a same-document
+  // navigation), so wait for the app itself rather than for network idle.
+  await page.goto(origin + "/vision/", { waitUntil: "load" });
+  await page.waitForFunction(() => !!window.__ppv, null, { timeout: 30000 });
   const key = readFileSync(join(tmp, "upload-key"), "utf8").trim();
   await step("camera-calibrate", async () => {
     await page.getByRole("button", { name: /카메라 시작/ }).tap();
@@ -164,31 +190,51 @@ try {
     await page.waitForFunction(() => window.__ppv.state.tour.mode === "all", null, { timeout: 5000 });
     await page.screenshot({ path: `${out}/settings-linked.png` });
     const t = await page.evaluate(() => window.__ppv.state.tour);
-    await page.getByRole("button", { name: /설정 닫기/ }).tap();
+    await page.locator(".popover button[aria-label='설정 닫기']").tap();
     return { matchId: t.matchId, near: t.near, status: await page.locator(".tourlink").count() };
   });
 
   await step("point-entered-then-cancelled", async () => {
-    await page.waitForFunction(() => window.__ppv.state.tour.pending && !window.__ppv.state.tour.pending.choice, null, { timeout: 300000, polling: 50 });
-    const pending = await page.evaluate(() => window.__ppv.state.tour.pending);
-    const entered = (await match()).points.length;
-    // The referee has 3 s: tap at once, before any slow screenshot.
-    await page.locator(".pointbar__cancel").tap({ timeout: 2500 });
-    await waitFor("undo", async () => (await match()).points.length === 0, 5000);
-    await page.waitForFunction(() => !window.__ppv.state.tour.pending, null, { timeout: 5000 });
-    if (entered !== 1) throw new Error(`tournament had ${entered} points when the bar appeared`);
-    return { pending, enteredPoints: entered, afterCancel: (await match()).points.length, notice: await page.evaluate(() => window.__ppv.state.tour.notice) };
+    // The referee has 3 s. On a slow test machine a Playwright tap can wait for the page to
+    // settle longer than that, so click 취소 inside the page the moment the first bar shows.
+    const pending = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const tick = () => {
+            const p = window.__ppv.state.tour.pending;
+            const btn = document.querySelector(".pointbar__cancel");
+            if (p && !p.choice && btn && !btn.hidden) {
+              const snap = JSON.parse(JSON.stringify(p));
+              btn.click();
+              return resolve(snap);
+            }
+            requestAnimationFrame(tick);
+          };
+          tick();
+        }),
+    );
+    await waitFor("undo", async () => (await match()).points.length <= 30, 5000);
+    await page.waitForFunction(() => !window.__ppv.state.tour.pending || window.__ppv.state.tour.pending.seq !== 31, null, { timeout: 5000 });
+    const said = await page.evaluate(() => window.__said.filter((t) => t.trim()));
+    const nearAfter = await page.evaluate(() => window.__ppv.state.tour.near);
+    const callout = said.find((t) => t.includes("엔드를 바꾸세요"));
+    if (pending.seq !== 31) throw new Error(`first auto point had seq ${pending.seq} (30 seeded)`);
+    if (!callout || !/사이드 5/.test(callout)) throw new Error(`no end-change call-out at 5: ${JSON.stringify(said)}`);
+    if (pending.flipped !== true) throw new Error("colours did not flip at 5 in the deciding game");
+    if (nearAfter !== 0) throw new Error(`cancel did not flip the colours back (near=${nearAfter})`);
+    if (!said.includes("취소")) throw new Error(`no 취소 call-out: ${JSON.stringify(said)}`);
+    return { pending, afterCancel: (await match()).points.length, said, nearAfterCancel: nearAfter, notice: await page.evaluate(() => window.__ppv.state.tour.notice) };
   });
 
   await step("next-point-stays-with-clip", async () => {
     await page.waitForFunction(() => window.__ppv.state.tour.pending && !window.__ppv.state.tour.pending.choice, null, { timeout: 300000, polling: 50 });
     await page.locator(".pointbar").screenshot({ path: `${out}/pointbar.png`, timeout: 2500 }).catch(() => {});
-    await waitFor("second point", async () => (await match()).points.length === 1, 5000);
+    await waitFor("second point", async () => (await match()).points.length === 31, 5000);
     const m = await waitFor("clip attached", async () => {
       const x = await match();
-      return x.clips && x.clips[0] ? x : null;
+      return x.clips && x.clips[30] ? x : null;
     }, 120000);
-    return { points: m.points, clip: m.clips[0] };
+    return { points: m.points.length, clip: m.clips[30], said: await page.evaluate(() => window.__said.filter((t) => t.trim()).slice(-2)) };
   });
 
   await step("viewer-sees-clip-live", async () => {

@@ -17,6 +17,7 @@ const browser = await chromium.launch({
   args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", `--use-file-for-fake-video-capture=${args.y4m}`, "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
 const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, permissions: ["camera"] });
+await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
 const page = await ctx.newPage();
 const requests = [];
 page.on("request", (r) => requests.push({ method: r.method(), url: r.url() }));
@@ -39,7 +40,7 @@ const setKey = async () => {
     await page.getByRole("button", { name: /열쇠 저장/ }).tap();
     await page.waitForFunction(() => window.__ppv.state.save.keySet, null, { timeout: 10000 });
     await page.screenshot({ path: `${out}/settings-key.png` });
-    await page.getByRole("button", { name: /설정 닫기/ }).tap();
+    await page.locator(".popover button[aria-label='설정 닫기']").tap();
   } else {
     await page.evaluate((k) => localStorage.setItem("ppv.uploadKey", JSON.stringify(k)), args.key);
     await page.reload({ waitUntil: "networkidle" });

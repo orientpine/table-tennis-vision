@@ -43,7 +43,15 @@ const fEnd = Math.min(f1, lastAnnotated + 30);
 const gtB = Object.entries(evGt).filter(([f, e]) => e === "bounce" && +f >= f0 && +f <= fEnd).map(([f]) => +f).sort((a, b) => a - b);
 const ourBEv = res.events.filter((e) => e.type === "bounce" && Math.round(e.t * fps) <= fEnd);
 const ourB = ourBEv.map((e) => Math.round(e.t * fps));
-const netX = Number(process.argv[5] || 920);
+// The net's image x: argv[5], else the table midline through the calibration corners, else 920 (test_2).
+const netX = process.argv[5]
+  ? Number(process.argv[5])
+  : process.env.PPV_CORNERS
+    ? (() => {
+        const c = JSON.parse(process.env.PPV_CORNERS);
+        return (c[0].x + c[3].x + c[1].x + c[2].x) / 4;
+      })()
+    : 920;
 const gtSide = (f) => (ballGt[f] && ballGt[f].x >= 0 ? (ballGt[f].x < netX ? "near" : "far") : null);
 const used = new Set();
 let btp = 0;
@@ -107,7 +115,9 @@ const shotFramesAll = res.events.filter((e) => e.type === "shot").map((e) => Mat
 // Between two consecutive annotated bounces on opposite sides exactly one hit happens, except
 // after a serve's first bounce (server's own side), which crosses the net with no hit. A serve
 // bounce is the first bounce after a pause of more than 0.8 s with no annotated event.
-const allEventFrames = Object.keys(evGt).map(Number).sort((a, b) => a - b);
+// "empty_event" frames are OpenTTGames' negative samples, not play: test_4 puts one 15 frames
+// before most serve bounces, which made those serves look like rally shots.
+const allEventFrames = Object.keys(evGt).filter((f) => evGt[f] !== "empty_event").map(Number).sort((a, b) => a - b);
 const isServeBounce = (f) => {
   const prev = allEventFrames.filter((g) => g < f).pop();
   return prev == null || f - prev > fps * 0.8;
@@ -126,6 +136,93 @@ const shotsBetweenBounces = {
   exactlyOne: intervals.filter((x) => x.shots === x.expected).length,
   none: intervals.filter((x) => x.shots < x.expected).length,
   moreThanOne: intervals.filter((x) => x.shots > x.expected).length,
+};
+// OpenTTGames labels only some rallies (test_1: 4 stretches over 138 s; ball frames 2460-15394 carry
+// no labels although play goes on), so app events outside the labelled stretches cannot be judged.
+// A window is a run of ball labels with gaps under 1.5 s, widened by 0.5 s; windowed scores count
+// only events inside one. The legacy bounce block above stays unwindowed for REPORT/REPORT-2.
+const labelled = Object.keys(ballGt).map(Number).sort((a, b) => a - b);
+const windows = [];
+for (const f of labelled) {
+  const w = windows[windows.length - 1];
+  if (w && f - w[1] <= fps * 1.5) w[1] = f;
+  else windows.push([f, f]);
+}
+const inWin = (f, margin = 0.5) => windows.some(([a, b]) => f >= a - fps * margin && f <= b + fps * margin);
+function matchEvents(gt, ours, tol) {
+  const used = new Set();
+  let tp = 0;
+  for (const g of gt) {
+    let best = -1;
+    let bd = tol + 1;
+    ours.forEach((o, i) => {
+      if (!used.has(i) && Math.abs(o - g) < bd) {
+        bd = Math.abs(o - g);
+        best = i;
+      }
+    });
+    if (best >= 0) {
+      used.add(best);
+      tp++;
+    }
+  }
+  const p = ours.length ? tp / ours.length : null;
+  const r = gt.length ? tp / gt.length : null;
+  return { gt: gt.length, detected: ours.length, tp, precision: p, recall: r, f1: p && r ? (2 * p * r) / (p + r) : 0 };
+}
+const bounceWin = { windows, ...matchEvents(gtB.filter((f) => inWin(f)), ourB.filter((f) => inWin(f)), TOL) };
+// Serve start: a GT serve is the first annotated bounce after a pause (isServeBounce). The app's
+// rallyStart counts as that serve when it falls from 2 s before (the toss) the serve bounce to 0.1 s after.
+// Net: OpenTTGames "net" events mark the ball passing the net (test_2 frames 92/230/343/386: the
+// annotated path runs straight through x~940 at constant velocity, no deflection), so they score
+// net CROSSINGS, not lets. The app's crossing = consecutive tracked points on opposite sides of netX
+// at most 4 output frames apart; +-6 frames. A let (net touch) needs its own labels.
+const gtServes = gtB.filter((f) => isServeBounce(f));
+const ourStarts = res.events.filter((e) => e.type === "rallyStart").map((e) => Math.round(e.t * fps)).filter((f) => f <= fEnd && inWin(f, 2.5));
+const usedStart = new Set();
+const serveLeads = [];
+for (const g of gtServes) {
+  const i = ourStarts.findIndex((o, j) => !usedStart.has(j) && o >= g - fps * 2 && o <= g + fps * 0.1);
+  if (i >= 0) {
+    usedStart.add(i);
+    serveLeads.push((g - ourStarts[i]) / fps);
+  }
+}
+const serveStart = {
+  note: "GT serve = first annotated bounce after a >0.8 s pause; hit = app rallyStart in [-2 s, +0.1 s] of it",
+  gt: gtServes.length,
+  detected: ourStarts.length,
+  tp: serveLeads.length,
+  recall: gtServes.length ? serveLeads.length / gtServes.length : null,
+  precision: ourStarts.length ? serveLeads.length / ourStarts.length : null,
+  medianLeadS: serveLeads.length ? serveLeads.sort((a, b) => a - b)[serveLeads.length >> 1] : null,
+};
+const gtNet = Object.entries(evGt).filter(([f, e]) => e === "net" && +f >= f0 && +f <= fEnd).map(([f]) => +f);
+const ourNet = [];
+{
+  let prev = null;
+  for (const fr of res.frames) {
+    if (!fr.ball || fr.f < f0 || fr.f > fEnd || !inWin(fr.f)) continue;
+    if (prev && fr.f - prev.f <= 4 * res.step && Math.sign(prev.ball.x - netX) !== Math.sign(fr.ball.x - netX)) ourNet.push(fr.f);
+    prev = fr;
+  }
+}
+const usedNet = new Set();
+let netTp = 0;
+for (const g of gtNet) {
+  const i = ourNet.findIndex((o, j) => !usedNet.has(j) && Math.abs(o - g) <= TOL);
+  if (i >= 0) {
+    usedNet.add(i);
+    netTp++;
+  }
+}
+const netCrossing = {
+  note: "OpenTTGames 'net' = ball passes over the net (not a let); app crossing from the tracked ball path",
+  gt: gtNet.length,
+  detected: ourNet.length,
+  tp: netTp,
+  recall: gtNet.length ? netTp / gtNet.length : null,
+  precision: ourNet.length ? netTp / ourNet.length : null,
 };
 const shotErr = rallies.map((r) => Math.abs(r.ourShotsInWindow - r.gtNetCrossings));
 // Reference speed per annotated flight: GT ball positions through the app's own table
@@ -197,12 +294,16 @@ const summary = {
   perfMs: res.perf,
   ball,
   bounce,
+  bounceWin,
   rallies,
   shotsBetweenBounces,
   speed,
+  serveStart,
+  netCrossing,
+  netX,
   rallyShotMeanAbsErr: shotErr.length ? shotErr.reduce((a, b) => a + b, 0) / shotErr.length : null,
   pose,
 };
 writeFileSync(outPath, JSON.stringify(summary, null, 2));
 const pct = (x) => (x == null ? "n/a" : (x * 100).toFixed(1) + "%");
-console.log(`SCORE ball recall=${pct(ball.recall)} precision=${pct(ball.precision)} (n=${annotated}) | bounce P=${pct(bounce.precision)} R=${pct(bounce.recall)} F1=${pct(bounce.f1)} (gt=${gtB.length}, det=${ourB.length}, gtGapFP=${bounce.falsePositivesInsideSameSideGtGap.length}, P_adj=${pct(bounce.precisionIfGtGapsCounted)}) | shots: ${shotsBetweenBounces.exactlyOne}/${shotsBetweenBounces.intervals} bounce-intervals have the expected hit count (${shotsBetweenBounces.serveIntervals} serve intervals expect 0; missing ${shotsBetweenBounces.none}, extra ${shotsBetweenBounces.moreThanOne}) | speed: ${speed ? `median ratio ${speed.medianRatio?.toFixed(2)}, median err ${pct(speed.medianAbsRelErr)}, ${speed.within30pct}/${speed.paired} within 30%` : "n/a"} | pose both=${pct(pose.framesBoth)} any=${pct(pose.framesAny)} | ms ball=${res.perf.ballMs?.toFixed(1)} pose=${res.perf.poseMs?.toFixed(1)}`);
+console.log(`SCORE ball recall=${pct(ball.recall)} precision=${pct(ball.precision)} (n=${annotated}) | bounce P=${pct(bounce.precision)} R=${pct(bounce.recall)} F1=${pct(bounce.f1)} (gt=${gtB.length}, det=${ourB.length}, gtGapFP=${bounce.falsePositivesInsideSameSideGtGap.length}, P_adj=${pct(bounce.precisionIfGtGapsCounted)}) | bounce in labelled windows F1=${pct(bounceWin.f1)} (gt=${bounceWin.gt}, det=${bounceWin.detected}) | shots: ${shotsBetweenBounces.exactlyOne}/${shotsBetweenBounces.intervals} bounce-intervals have the expected hit count (${shotsBetweenBounces.serveIntervals} serve intervals expect 0; missing ${shotsBetweenBounces.none}, extra ${shotsBetweenBounces.moreThanOne}) | speed: ${speed ? `median ratio ${speed.medianRatio?.toFixed(2)}, median err ${pct(speed.medianAbsRelErr)}, ${speed.within30pct}/${speed.paired} within 30%` : "n/a"} | serve start R=${pct(serveStart.recall)} P=${pct(serveStart.precision)} (gt=${serveStart.gt}) | net crossing R=${pct(netCrossing.recall)} P=${pct(netCrossing.precision)} (gt=${netCrossing.gt}, app=${netCrossing.detected}) | pose both=${pct(pose.framesBoth)} any=${pct(pose.framesAny)} | ms ball=${res.perf.ballMs?.toFixed(1)} pose=${res.perf.poseMs?.toFixed(1)}`);

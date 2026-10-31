@@ -13,6 +13,7 @@ const iphone = devices["iPhone 15"];
 const viewport = orientation === "landscape" ? { width: iphone.viewport.height, height: iphone.viewport.width } : iphone.viewport;
 const browser = await webkit.launch(process.env.PPV_WEBKIT ? { executablePath: process.env.PPV_WEBKIT } : {});
 const ctx = await browser.newContext({ ...iphone, viewport });
+await ctx.addInitScript(() => { if (location.origin !== "null") sessionStorage.setItem("pp-started", "1"); });
 const page = await ctx.newPage();
 const consoleErrors = [];
 page.on("console", (m) => {
@@ -100,7 +101,9 @@ await step("calibrate-4-taps", async () => {
     return 1 / Math.min(r.width / v.videoWidth, r.height / v.videoHeight);
   });
   const errCss = err / videoPxPerCssPx;
-  if (errCss > 1.5) throw new Error(`corner error ${err.toFixed(2)} video px = ${errCss.toFixed(2)} CSS px`);
+  // The fourth tap snaps the corners onto the table's white border (calib-refine.js), so the
+  // saved corners may sit a few px from exact taps; more than 8 px (1080p) is a wrong snap.
+  if (err > 8 * k) throw new Error(`corner error ${err.toFixed(2)} video px = ${errCss.toFixed(2)} CSS px`);
   const currentTime = await page.evaluate(() => document.querySelector("video").currentTime);
   return { maxCornerErrorVideoPx: Math.round(err * 100) / 100, maxCornerErrorCssPx: Math.round(errCss * 100) / 100, videoTimeAfterCalibration: Math.round(currentTime * 100) / 100 };
 });
@@ -134,7 +137,7 @@ await step("running-hud", async () => {
 });
 await step("swap-players", async () => {
   const before = await page.evaluate(() => window.__ppv.pipeline.players.swapped);
-  await page.getByRole("button", { name: /선수 바꾸기/ }).tap();
+  await page.getByRole("button", { name: /자리 교체/ }).tap();
   const after = await page.evaluate(() => window.__ppv.pipeline.players.swapped);
   if (before === after) throw new Error("swap flag unchanged");
   return { before, after };

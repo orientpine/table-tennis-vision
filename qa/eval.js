@@ -26,7 +26,7 @@ async function main() {
     video.onerror = () => rej(new Error("video load failed"));
   });
   const total = Math.floor(video.duration * SRC_FPS);
-  const pose = usePose ? await createPose({ delegate: q.get("delegate") || "GPU" }) : null;
+  const pose = usePose ? await createPose({ delegate: q.get("delegate") || "GPU", model: q.get("poseModel") || "lite", numPoses: Number(q.get("numPoses") || 2) }) : null;
   const events = [];
   const pipe = new Pipeline({ pose, procWidth, poseEvery, onEvent: (e) => events.push(structuredClone({ ...e, shot: e.shot && { ...e.shot } })) });
   pipe.setVideoSize(video.videoWidth, video.videoHeight);

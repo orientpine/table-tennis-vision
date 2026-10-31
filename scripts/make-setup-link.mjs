@@ -13,7 +13,8 @@ const tokenFile = process.env.PPV_SETUP_FILE || join(cfg, "setup-tokens.json");
 const out = process.env.PPV_SETUP_LINK_FILE || join(cfg, "setup-link.txt");
 const base = (process.env.PPV_PUBLIC_URL || readFileSync(new URL("../public-url.txt", import.meta.url), "utf8")).trim();
 const { token, expiresAt } = createSetupToken({ tokenFile });
-writeFileSync(out, `${base}#setup=${token}\n`, { mode: 0o600 });
+// One address: the tournament app at "/" hands #setup to the camera screen.
+writeFileSync(out, `${new URL("/", base).href}#setup=${token}\n`, { mode: 0o600 });
 chmodSync(out, 0o600);
 const kst = new Date(expiresAt).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 console.log(`setup link written to ${out} (0600), one use, expires ${kst} KST`);

@@ -39,3 +39,25 @@ export function judgePoint({ shots = [], bounces = [] } = {}) {
   const sure = reason === "double_bounce" || bs.length >= 3;
   return { winner: other(loser), loser, reason, label: REASONS[reason], sure, bounces: bs.length, shots: ss.length };
 }
+
+// Signals that the serve may have been a fault or a let. They only raise a one-tap question
+// ("폴트?" / "렛?"); nothing changes unless the referee taps.
+//   fault: the first bounce after the serve is on the receiver's side, and the ball was tracked
+//          well over the server's own half (measured for FAULT_MIN_SPAN_S, no gap longer than
+//          FAULT_MAX_GAP_S), so a real own-side bounce would have been seen. Without the coverage
+//          check it fired on 8 of 31 game_1 points (26%), nearly all missed own bounces; with it,
+//          0 of 31 at 60 fps and 1 of 31 at 30 fps. The span is time, not a point count, so 30
+//          and 60 fps use the same rule. A serve faster than this over its own half is not asked.
+//   let:   the serve's along-table speed drops sharply across the net line (serveNet.ratio, from
+//          rally.js netKink) and it still lands in
+export const LET_RATIO = 0.55;
+export const FAULT_MIN_SPAN_S = 0.25;
+export const FAULT_MAX_GAP_S = 0.07;
+export function suspects({ shots = [], bounces = [], serveNet = null, serveSeen = null } = {}) {
+  const serve = [...shots].sort((a, b) => a.t - b.t)[0];
+  if (!serve) return { fault: false, let: false, server: null };
+  const first = [...bounces].sort((a, b) => a.t - b.t).find((b) => b.t > serve.t);
+  const landed = !!first && first.side !== serve.side;
+  const seen = !!serveSeen && serveSeen.spanS >= FAULT_MIN_SPAN_S && serveSeen.maxGapS <= FAULT_MAX_GAP_S;
+  return { fault: landed && seen, let: landed && !!serveNet && serveNet.ratio < LET_RATIO, server: serve.side };
+}
