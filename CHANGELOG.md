@@ -6,6 +6,12 @@ All notable changes to PingPong Vision. The format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-31
+
+### Fixed
+
+- **`install.sh` works on recent macOS again.** It stopped at the model download with `usage: sha256sum [-bctwz]`, because recent macOS ships its own `sha256sum` that the model check mistook for the Linux one. It now uses `shasum` when present.
+
 ## [1.0.1] - 2026-10-31
 
 ### Changed
@@ -64,7 +70,8 @@ First tagged release: the app as it runs at the maintainer's club since the 0.1.
 
 First public snapshot (untagged, a single commit). On-device pose for two players, ball tracking, rally time and shots, estimated shot speed, bounce map, MOVE distance and wrist angle, LOCK marker, rally history, optional save to your own PC, offline accuracy harness on OpenTTGames.
 
-[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/orientpine/pingpong-vision/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/orientpine/pingpong-vision/releases/tag/v1.0.0
 [0.1.0]: https://github.com/orientpine/pingpong-vision/commit/56bb9e8

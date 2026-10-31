@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-command -v sha256sum >/dev/null || sha256sum() { shasum -a 256 "$@"; }
+# shasum (perl, on macOS and most Linux) when present: recent macOS also ships a BSD sha256sum that
+# rejects --status. Otherwise GNU sha256sum.
+if command -v shasum >/dev/null 2>&1; then sha256sum() { shasum -a 256 "$@"; }; fi
 mkdir -p "$(dirname "$0")/../public/models"
 cd "$(dirname "$0")/../public/models"
 

@@ -6,6 +6,12 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-31
+
+### 고침
+
+- **요즘 macOS에서 `install.sh`가 다시 끝까지 됩니다.** 자세 모델을 받다가 `usage: sha256sum [-bctwz]`로 멈췄습니다. 요즘 macOS에 들어 있는 `sha256sum`을 리눅스 것으로 잘못 알았기 때문입니다. 이제 `shasum`이 있으면 그것을 씁니다.
+
 ## [1.0.1] - 2026-10-31
 
 ### 바뀜
@@ -64,7 +70,8 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 첫 공개본입니다(태그 없음, 커밋 한 개). 두 선수 자세, 공 추적, 랠리 시간과 샷 수, 샷 속도 추정, 바운드 지도, 이동 거리와 손목 각도, LOCK 표시, 랠리 기록, 내 PC 저장(선택), OpenTTGames 오프라인 정확도 측정 도구가 들어 있습니다.
 
-[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/orientpine/pingpong-vision/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/orientpine/pingpong-vision/releases/tag/v1.0.0
 [0.1.0]: https://github.com/orientpine/pingpong-vision/commit/56bb9e8
