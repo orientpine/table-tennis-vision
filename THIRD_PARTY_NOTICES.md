@@ -20,10 +20,15 @@ following third-party components under their own licenses.
 ## Images under a different license
 
 The images in `docs/img/` (`hero.gif`, `portrait-running.png`, `calibrate.png`, `history.png`,
-`tv-running.png`, `social-preview.png`) are screen captures of this app running on frames of the
+`tv-running.png`) are screen captures of this app running on frames of the
 OpenTTGames `test_2` video. They are adapted from that dataset (cropped, scaled, the app's overlay
 drawn on top) and are therefore licensed under **CC BY-NC-SA 4.0**
 (https://creativecommons.org/licenses/by-nc-sa/4.0/), **not** under the MIT license that covers the
 code. Attribution: OpenTTGames dataset, OSAI, https://lab.osai.ai/ (Voeikov, Falaleev, Baikulov,
 "TTNet: Real-time temporal and spatial video analysis of table tennis", CVPR Workshops 2020).
 Non-commercial use only for these images; replace them if you need a commercial build.
+
+The pixel-art title (`title.png`, `title-small.png`), the penguin mascot (`mascot-*.png`) and
+`social-preview.png` contain no dataset frames. They are this project's own drawings and are covered
+by the MIT license with the code. `social-preview.png` sets its text in Galmuri (SIL OFL 1.1, see
+`public/fonts/LICENSE-Galmuri-OFL.txt`).

@@ -1,6 +1,6 @@
 # Releasing
 
-How versions and releases work for the public repository `orientpine/table-tennis-vision`.
+How versions and releases work for the public repository `orientpine/pingpong-vision`.
 
 ## Version numbers
 
@@ -35,7 +35,7 @@ Run these on the maintainer's machine. It holds the scan patterns and the privat
 3. **Commit on top of the public history.** Never force-push.
 
    ```bash
-   git clone https://github.com/orientpine/table-tennis-vision "$R/pub"
+   git clone https://github.com/orientpine/pingpong-vision "$R/pub"
    rsync -a --delete --exclude .git "$R/tree/" "$R/pub/"
    cd "$R/pub" && git add -A && git status --short
    git commit -m "Release vX.Y.Z: <one line>"

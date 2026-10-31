@@ -2,23 +2,26 @@
 
 [English](README.md) · **한국어**
 
+<h1>
+  <img src="docs/img/title.png" alt="PingPong Vision (핑퐁 비전)" width="540">
+  <img src="docs/img/mascot-256.png" alt="보라 머리띠를 하고 빨간 탁구 라켓으로 하얀 공을 치는 도트 펭귄 마스코트" width="160">
+</h1>
+
 <img src="docs/img/hero.gif" alt="가로로 둔 폰에서 돌아가는 화면: 공개 OpenTTGames 경기 위에 랠리 시간, 샷 수, 속도 추정, LOCK 붙은 공 궤적, 선수 뼈대, 코트 지도" width="720">
 
-<sub>배너와 화면 캡처: <a href="https://lab.osai.ai/">OpenTTGames 데이터셋</a>(OSAI)의 <code>test_2</code> 프레임을 자르고 줄인 뒤 앱 오버레이를 그린 것입니다. 이 이미지들은 코드의 MIT가 아니라 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ko">CC BY-NC-SA 4.0</a>을 따릅니다.</sub>
-
-# Table Tennis Vision (핑퐁 비전)
+<sub>이 움직이는 그림과 화면 캡처: <a href="https://lab.osai.ai/">OpenTTGames 데이터셋</a>(OSAI)의 <code>test_2</code> 프레임을 자르고 줄인 뒤 앱 오버레이를 그린 것입니다. 이 이미지들은 코드의 MIT가 아니라 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ko">CC BY-NC-SA 4.0</a>을 따릅니다.</sub>
 
 **무료·오픈소스 탁구 영상 분석. 폰 카메라 한 대로 브라우저에서 돌고, 서버는 내 PC에 직접 띄웁니다.**
 
-[![License: MIT](https://img.shields.io/github/license/orientpine/table-tennis-vision?color=blue)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/orientpine/table-tennis-vision?sort=semver)](https://github.com/orientpine/table-tennis-vision/releases)
+[![License: MIT](https://img.shields.io/github/license/orientpine/pingpong-vision?color=blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/orientpine/pingpong-vision?sort=semver)](https://github.com/orientpine/pingpong-vision/releases)
 [![Runtime: bun](https://img.shields.io/badge/runtime-bun%20%E2%89%A5%201.1-f9f1e1?logo=bun&logoColor=white)](https://bun.sh)
 [![Platform: iPhone Safari · Android Chrome](https://img.shields.io/badge/platform-iPhone%20Safari%20%C2%B7%20Android%20Chrome-0b1634)](#pc-설치-tailscale)
 [![Price: free](https://img.shields.io/badge/price-free-ff8a1f)](LICENSE)
 
 </div>
 
-Table Tennis Vision은 **아이폰 Safari**와 모바일 브라우저에서 도는 **탁구 영상 분석 웹앱**(PWA)입니다. 탁구대 옆 삼각대에 폰을 세우면 화면 위에 바로 이런 것을 보여 줍니다.
+PingPong Vision은 **아이폰 Safari**와 모바일 브라우저에서 도는 **탁구 영상 분석 웹앱**(PWA)입니다. 탁구대 옆 삼각대에 폰을 세우면 화면 위에 바로 이런 것을 보여 줍니다.
 
 - **자세 추정**: 두 선수의 뼈대(MediaPipe Pose Landmarker)
 - **공 추적**: 색과 움직임으로 찾고, 머신러닝은 쓰지 않습니다
@@ -72,7 +75,7 @@ Table Tennis Vision은 **아이폰 Safari**와 모바일 브라우저에서 도�
 [bun](https://bun.sh) 1.1 이상, `git`, `curl`, `unzip`이 필요합니다.
 
 ```bash
-git clone https://github.com/orientpine/table-tennis-vision && cd table-tennis-vision
+git clone https://github.com/orientpine/pingpong-vision && cd pingpong-vision
 bash install.sh && bun server.js
 ```
 
@@ -119,8 +122,8 @@ curl -fsSL https://bun.sh/install | bash
 ### 3. 코드 받고 설치
 
 ```bash
-git clone https://github.com/orientpine/table-tennis-vision
-cd table-tennis-vision
+git clone https://github.com/orientpine/pingpong-vision
+cd pingpong-vision
 bash install.sh
 ```
 
@@ -170,14 +173,14 @@ tailscale serve status                                                # https://
 
 ### 7. 자동 시작(맥)
 
-리눅스는 `start.sh`가 해 줍니다. 맥은 LaunchAgent로 `bun server.js`를 켜 둡니다. 아래를 `~/Library/LaunchAgents/local.table-tennis-vision.plist`로 저장하세요(경로 두 곳은 내 것으로).
+리눅스는 `start.sh`가 해 줍니다. 맥은 LaunchAgent로 `bun server.js`를 켜 둡니다. 아래를 `~/Library/LaunchAgents/local.pingpong-vision.plist`로 저장하세요(경로 두 곳은 내 것으로).
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>local.table-tennis-vision</string>
-  <key>WorkingDirectory</key><string>/Users/YOU/table-tennis-vision</string>
+  <key>Label</key><string>local.pingpong-vision</string>
+  <key>WorkingDirectory</key><string>/Users/YOU/pingpong-vision</string>
   <key>ProgramArguments</key><array><string>/Users/YOU/.bun/bin/bun</string><string>server.js</string></array>
   <key>EnvironmentVariables</key><dict><key>PORT</key><string>8791</string></dict>
   <key>RunAtLoad</key><true/>
@@ -186,17 +189,17 @@ tailscale serve status                                                # https://
 ```
 
 ```bash
-launchctl load -w ~/Library/LaunchAgents/local.table-tennis-vision.plist
+launchctl load -w ~/Library/LaunchAgents/local.pingpong-vision.plist
 ```
 
 ### 8. 업데이트
 
 ```bash
-cd table-tennis-vision && git pull && bash install.sh
+cd pingpong-vision && git pull && bash install.sh
 ./start.sh --restart        # 리눅스 서비스. 맥이나 직접 띄운 경우는 bun server.js를 다시 켭니다
 ```
 
-바뀐 점은 [릴리스](https://github.com/orientpine/table-tennis-vision/releases)에서 봅니다.
+바뀐 점은 [릴리스](https://github.com/orientpine/pingpong-vision/releases)에서 봅니다.
 
 ### 9. 문제 해결
 
@@ -300,7 +303,7 @@ bun qa/score.mjs /tmp/test_2.offline.json data/videos/test_2 /tmp/test_2.score.j
 
 ## 릴리스
 
-버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다. 버전마다 바뀐 점은 [CHANGELOG.ko.md](CHANGELOG.ko.md)(English [CHANGELOG.md](CHANGELOG.md))에 쉬운 말로 적습니다. 내려받기(소스 zip)는 [릴리스](https://github.com/orientpine/table-tennis-vision/releases) 페이지에 있습니다. 릴리스를 만드는 방법은 [RELEASING.md](RELEASING.md)에 있습니다.
+버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다. 버전마다 바뀐 점은 [CHANGELOG.ko.md](CHANGELOG.ko.md)(English [CHANGELOG.md](CHANGELOG.md))에 쉬운 말로 적습니다. 내려받기(소스 zip)는 [릴리스](https://github.com/orientpine/pingpong-vision/releases) 페이지에 있습니다. 릴리스를 만드는 방법은 [RELEASING.md](RELEASING.md)에 있습니다.
 
 ## 라이선스와 제3자 고지
 

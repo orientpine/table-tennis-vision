@@ -1,10 +1,21 @@
 # 바뀐 점
 
-Table Tennis Vision의 바뀐 점을 버전별로 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를, 버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다([RELEASING.md](RELEASING.md)).
+PingPong Vision의 바뀐 점을 버전별로 적습니다. 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를, 버전은 [유의적 버전](https://semver.org/lang/ko/)을 따릅니다([RELEASING.md](RELEASING.md)).
 
 English: [CHANGELOG.md](CHANGELOG.md)
 
 ## [Unreleased]
+
+## [1.0.1] - 2026-10-31
+
+### 바뀜
+
+- **새 이름 PingPong Vision.** 저장소 주소가 `orientpine/pingpong-vision`으로 바뀌었습니다. 옛 주소 `orientpine/table-tennis-vision`은 새 주소로 넘어가고, 이미 받은 clone도 그대로 됩니다. remote를 바꾸려면 `git remote set-url origin https://github.com/orientpine/pingpong-vision`.
+- **마스코트와 도트 제목.** README 맨 위에 앱 시작 화면의 도트 제목과 탁구 펭귄이 들어갔습니다.
+
+### 고침
+
+- **배너 GIF가 더는 튀지 않습니다.** README 움직이는 그림의 약 4프레임 중 1프레임이 화면 한쪽을 크게 확대한 조각이었습니다. 페이지 배율 그대로 한 프레임씩 다시 찍었습니다.
 
 ## [1.0.0] - 2026-10-31
 
@@ -53,6 +64,7 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 첫 공개본입니다(태그 없음, 커밋 한 개). 두 선수 자세, 공 추적, 랠리 시간과 샷 수, 샷 속도 추정, 바운드 지도, 이동 거리와 손목 각도, LOCK 표시, 랠리 기록, 내 PC 저장(선택), OpenTTGames 오프라인 정확도 측정 도구가 들어 있습니다.
 
-[Unreleased]: https://github.com/orientpine/table-tennis-vision/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/orientpine/table-tennis-vision/releases/tag/v1.0.0
-[0.1.0]: https://github.com/orientpine/table-tennis-vision/commit/56bb9e8
+[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/orientpine/pingpong-vision/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/orientpine/pingpong-vision/releases/tag/v1.0.0
+[0.1.0]: https://github.com/orientpine/pingpong-vision/commit/56bb9e8

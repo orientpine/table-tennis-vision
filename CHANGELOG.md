@@ -1,10 +1,21 @@
 # Changelog
 
-All notable changes to Table Tennis Vision. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/) (see [RELEASING.md](RELEASING.md)).
+All notable changes to PingPong Vision. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/) (see [RELEASING.md](RELEASING.md)).
 
 한국어: [CHANGELOG.ko.md](CHANGELOG.ko.md)
 
 ## [Unreleased]
+
+## [1.0.1] - 2026-10-31
+
+### Changed
+
+- **New name: PingPong Vision.** The repository is now `orientpine/pingpong-vision`. The old address `orientpine/table-tennis-vision` still redirects, and existing clones keep working. To update the remote anyway: `git remote set-url origin https://github.com/orientpine/pingpong-vision`.
+- **A mascot and the pixel title.** The README opens with the app's pixel-art title (the one on the start screen) and a ping-pong penguin.
+
+### Fixed
+
+- **The banner GIF no longer jumps.** About one frame in four of the README animation showed a zoomed-in corner of the screen. It is re-recorded frame by frame at the page's own scale.
 
 ## [1.0.0] - 2026-10-31
 
@@ -53,6 +64,7 @@ First tagged release: the app as it runs at the maintainer's club since the 0.1.
 
 First public snapshot (untagged, a single commit). On-device pose for two players, ball tracking, rally time and shots, estimated shot speed, bounce map, MOVE distance and wrist angle, LOCK marker, rally history, optional save to your own PC, offline accuracy harness on OpenTTGames.
 
-[Unreleased]: https://github.com/orientpine/table-tennis-vision/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/orientpine/table-tennis-vision/releases/tag/v1.0.0
-[0.1.0]: https://github.com/orientpine/table-tennis-vision/commit/56bb9e8
+[Unreleased]: https://github.com/orientpine/pingpong-vision/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/orientpine/pingpong-vision/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/orientpine/pingpong-vision/releases/tag/v1.0.0
+[0.1.0]: https://github.com/orientpine/pingpong-vision/commit/56bb9e8

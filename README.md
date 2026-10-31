@@ -2,23 +2,26 @@
 
 **English** · [한국어](README.ko.md)
 
-<img src="docs/img/hero.gif" alt="Table Tennis Vision running on a phone in landscape: rally timer, shot count, estimated speed, ball trail with LOCK, player skeleton and court map over a public OpenTTGames match" width="720">
+<h1>
+  <img src="docs/img/title.png" alt="PingPong Vision" width="540">
+  <img src="docs/img/mascot-256.png" alt="Pixel-art penguin mascot in a purple headband swinging a red table tennis paddle at a white ball" width="160">
+</h1>
 
-<sub>Banner and screenshots: frames of <code>test_2</code> from the <a href="https://lab.osai.ai/">OpenTTGames dataset</a> (OSAI), cropped and scaled, with the app's overlay drawn on top. These images are licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>, not under the MIT license of the code.</sub>
+<img src="docs/img/hero.gif" alt="PingPong Vision running on a phone in landscape: rally timer, shot count, estimated speed, ball trail with LOCK, player skeleton and court map over a public OpenTTGames match" width="720">
 
-# Table Tennis Vision
+<sub>This animation and the screenshots: frames of <code>test_2</code> from the <a href="https://lab.osai.ai/">OpenTTGames dataset</a> (OSAI), cropped and scaled, with the app's overlay drawn on top. These images are licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>, not under the MIT license of the code.</sub>
 
 **Free, open-source table tennis (ping-pong) video analysis from one phone camera. It runs in the browser on your phone, and you host it yourself.**
 
-[![License: MIT](https://img.shields.io/github/license/orientpine/table-tennis-vision?color=blue)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/orientpine/table-tennis-vision?sort=semver)](https://github.com/orientpine/table-tennis-vision/releases)
+[![License: MIT](https://img.shields.io/github/license/orientpine/pingpong-vision?color=blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/orientpine/pingpong-vision?sort=semver)](https://github.com/orientpine/pingpong-vision/releases)
 [![Runtime: bun](https://img.shields.io/badge/runtime-bun%20%E2%89%A5%201.1-f9f1e1?logo=bun&logoColor=white)](https://bun.sh)
 [![Platform: iPhone Safari · Android Chrome](https://img.shields.io/badge/platform-iPhone%20Safari%20%C2%B7%20Android%20Chrome-0b1634)](#install-on-your-pc-with-tailscale)
 [![Price: free](https://img.shields.io/badge/price-free-ff8a1f)](LICENSE)
 
 </div>
 
-Table Tennis Vision is a **table tennis analysis web app** (a PWA) for **iPhone Safari** and other mobile browsers. Put the phone on a tripod beside the table and it shows, live on the picture:
+PingPong Vision is a **table tennis analysis web app** (a PWA) for **iPhone Safari** and other mobile browsers. Put the phone on a tripod beside the table and it shows, live on the picture:
 
 - **pose estimation** (skeletons for two players, MediaPipe Pose Landmarker)
 - **ball tracking** (colour and motion, no ML)
@@ -74,7 +77,7 @@ All screenshots are the real app computing on a clip from the public OpenTTGames
 You need [bun](https://bun.sh) 1.1 or newer, `git`, `curl` and `unzip`.
 
 ```bash
-git clone https://github.com/orientpine/table-tennis-vision && cd table-tennis-vision
+git clone https://github.com/orientpine/pingpong-vision && cd pingpong-vision
 bash install.sh && bun server.js
 ```
 
@@ -121,8 +124,8 @@ Open a new terminal afterwards so `bun` is on your `PATH` (`bun --version` shoul
 ### 3. Get the code and install
 
 ```bash
-git clone https://github.com/orientpine/table-tennis-vision
-cd table-tennis-vision
+git clone https://github.com/orientpine/pingpong-vision
+cd pingpong-vision
 bash install.sh
 ```
 
@@ -172,14 +175,14 @@ On Windows run the `tailscale serve` line in PowerShell (Tailscale for Windows),
 
 ### 7. Start automatically (macOS)
 
-`start.sh` covers Linux. On macOS, a LaunchAgent keeps `bun server.js` running. Save this as `~/Library/LaunchAgents/local.table-tennis-vision.plist` (fix the two paths):
+`start.sh` covers Linux. On macOS, a LaunchAgent keeps `bun server.js` running. Save this as `~/Library/LaunchAgents/local.pingpong-vision.plist` (fix the two paths):
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>local.table-tennis-vision</string>
-  <key>WorkingDirectory</key><string>/Users/YOU/table-tennis-vision</string>
+  <key>Label</key><string>local.pingpong-vision</string>
+  <key>WorkingDirectory</key><string>/Users/YOU/pingpong-vision</string>
   <key>ProgramArguments</key><array><string>/Users/YOU/.bun/bin/bun</string><string>server.js</string></array>
   <key>EnvironmentVariables</key><dict><key>PORT</key><string>8791</string></dict>
   <key>RunAtLoad</key><true/>
@@ -188,17 +191,17 @@ On Windows run the `tailscale serve` line in PowerShell (Tailscale for Windows),
 ```
 
 ```bash
-launchctl load -w ~/Library/LaunchAgents/local.table-tennis-vision.plist
+launchctl load -w ~/Library/LaunchAgents/local.pingpong-vision.plist
 ```
 
 ### 8. Update
 
 ```bash
-cd table-tennis-vision && git pull && bash install.sh
+cd pingpong-vision && git pull && bash install.sh
 ./start.sh --restart        # Linux service; on macOS/by hand restart bun server.js instead
 ```
 
-Check [Releases](https://github.com/orientpine/table-tennis-vision/releases) for what changed.
+Check [Releases](https://github.com/orientpine/pingpong-vision/releases) for what changed.
 
 ### 9. Troubleshooting
 
@@ -302,7 +305,7 @@ Issues and pull requests are welcome, in English or Korean.
 
 ## Releases
 
-Versions follow [semantic versioning](https://semver.org/). [CHANGELOG.md](CHANGELOG.md) (한국어 [CHANGELOG.ko.md](CHANGELOG.ko.md)) lists what changed in each version, in plain words. Downloads (source zip) are on the [Releases](https://github.com/orientpine/table-tennis-vision/releases) page. [RELEASING.md](RELEASING.md) describes how a release is made.
+Versions follow [semantic versioning](https://semver.org/). [CHANGELOG.md](CHANGELOG.md) (한국어 [CHANGELOG.ko.md](CHANGELOG.ko.md)) lists what changed in each version, in plain words. Downloads (source zip) are on the [Releases](https://github.com/orientpine/pingpong-vision/releases) page. [RELEASING.md](RELEASING.md) describes how a release is made.
 
 ## License and third-party notices
 

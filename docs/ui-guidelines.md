@@ -1,4 +1,4 @@
-# UI Guidelines: pingpong-vision (iPhone Safari, tripod camera + pixel-art fighting-game HUD)
+# UI Guidelines: PingPong Vision (iPhone Safari, tripod camera + pixel-art fighting-game HUD)
 
 Universal interface rules distilled from Apple's Human Interface Guidelines (Apple-only details removed; source pages listed at the end), written so each one can be checked from a screenshot or a DOM measurement. `qa/ui-r2.mjs` measures the starred items (`*`) on the real app in four viewports; before/after measurements are retained with the test results.
 
